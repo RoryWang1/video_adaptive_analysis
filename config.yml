@@ -1,0 +1,116 @@
+# Savant 视频分析系统 - 统一配置文件
+#
+# 在这个文件中定义所有视频源、模型和路由规则
+# 运行 scripts/generate_config.py 自动生成 Docker Compose 和 Router 配置
+
+# 项目基本信息
+project:
+  name: ai_video_analysis
+  version: "1.0.0"
+
+# 视频源配置
+video_sources:
+  - id: video1
+    type: file  # file, rtsp, usb, http
+    location: /videos/video1.mp4
+    loop: true
+    sync_output: true
+    route_to: yolov8  # 路由到哪个模型
+    memory_limit: 512M
+
+  - id: video2
+    type: file
+    location: /videos/video2.mp4
+    loop: true
+    sync_output: true
+    route_to: yolov8
+    memory_limit: 512M
+
+  - id: video3
+    type: file
+    location: /videos/video3.mp4
+    loop: true
+    sync_output: true
+    route_to: peoplenet
+    memory_limit: 512M
+
+  # 添加新视频源示例（已注释）
+  # - id: camera1
+  #   type: rtsp
+  #   location: rtsp://admin:password@192.168.1.100:554/stream
+  #   loop: false
+  #   sync_output: false
+  #   route_to: yolov8
+  #   rtsp_transport: tcp
+  #   memory_limit: 512M
+
+# AI 模型配置
+models:
+  - name: yolov8
+    module_path: modules/yolov8/module.yml
+    batch_size: 8
+    prometheus_port: 8000  # 主机端口
+    container_port: 8080   # 容器内部端口
+    zmq_socket: yolov8.ipc
+    healthcheck: true
+    gpu_required: true
+
+  - name: peoplenet
+    module_path: modules/peoplenet/module.yml
+    batch_size: 4
+    prometheus_port: 8001
+    container_port: 8080
+    zmq_socket: peoplenet.ipc
+    healthcheck: true
+    gpu_required: true
+
+  # 添加新模型示例（已注释）
+  # - name: your_model
+  #   module_path: modules/your_model/module.yml
+  #   batch_size: 4
+  #   prometheus_port: 8002
+  #   container_port: 8080
+  #   zmq_socket: your_model.ipc
+  #   healthcheck: true
+  #   gpu_required: true
+
+# 监控配置
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    retention: 7d
+    memory_limit: 512M
+
+  grafana:
+    enabled: true
+    port: 3000
+    admin_password: admin
+    memory_limit: 512M
+
+# Docker 镜像版本
+docker_images:
+  savant_deepstream: ghcr.io/insight-platform/savant-deepstream:0.6.0-7.1
+  savant_adapters_gstreamer: ghcr.io/insight-platform/savant-adapters-gstreamer:0.6.0
+  savant_adapters_py: ghcr.io/insight-platform/savant-adapters-py:0.6.0
+  savant_router: ghcr.io/insight-platform/savant-router-x86:v0.6.0
+  prometheus: prom/prometheus:latest
+  grafana: grafana/grafana:latest
+
+# 资源限制默认值
+resource_defaults:
+  source_adapter:
+    memory_limit: 512M
+    memory_reservation: 128M
+  router:
+    memory_limit: 256M
+    memory_reservation: 64M
+  json_sink:
+    memory_limit: 256M
+    memory_reservation: 64M
+  prometheus:
+    memory_limit: 512M
+    memory_reservation: 128M
+  grafana:
+    memory_limit: 512M
+    memory_reservation: 128M

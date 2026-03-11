@@ -23,6 +23,19 @@ class ConfigValidator:
         self.project_root = Path(project_root)
         self.errors: List[str] = []
         self.warnings: List[str] = []
+        self.config_yml = self._load_config_yml()
+
+    def _load_config_yml(self) -> Dict:
+        """加载 config.yml 配置文件"""
+        config_file = self.project_root / 'config.yml'
+        if not config_file.exists():
+            return {}
+
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        except Exception:
+            return {}
 
     def validate_all(self) -> bool:
         """执行所有验证"""
@@ -84,13 +97,32 @@ class ConfigValidator:
 
             services = config.get('services', {})
 
-            # 检查关键服务
-            required_services = [
-                'router', 'yolov8-module', 'peoplenet-module',
-                'source-adapter-1', 'source-adapter-2', 'source-adapter-3',
-                'json-sink-yolov8', 'json-sink-peoplenet',
-                'prometheus', 'grafana'
-            ]
+            # 从 config.yml 动态构建必需服务列表
+            required_services = ['router']
+
+            # 添加模型服务
+            if self.config_yml:
+                for model in self.config_yml.get('models', []):
+                    required_services.append(f"{model['name']}-module")
+                    required_services.append(f"json-sink-{model['name']}")
+
+                # 添加视频源服务
+                for source in self.config_yml.get('video_sources', []):
+                    required_services.append(f"source-adapter-{source['id']}")
+
+                # 添加监控服务
+                if self.config_yml.get('monitoring', {}).get('prometheus', {}).get('enabled'):
+                    required_services.append('prometheus')
+                if self.config_yml.get('monitoring', {}).get('grafana', {}).get('enabled'):
+                    required_services.append('grafana')
+            else:
+                # 如果没有 config.yml，使用默认列表
+                required_services.extend([
+                    'yolov8-module', 'peoplenet-module',
+                    'source-adapter-video1', 'source-adapter-video2', 'source-adapter-video3',
+                    'json-sink-yolov8', 'json-sink-peoplenet',
+                    'prometheus', 'grafana'
+                ])
 
             for service in required_services:
                 if service not in services:
@@ -99,10 +131,17 @@ class ConfigValidator:
                     print(f"  ✅ 服务 {service} 已定义")
 
             # 检查健康检查配置
-            for module in ['yolov8-module', 'peoplenet-module']:
-                if module in services:
-                    if 'healthcheck' not in services[module]:
-                        self.warnings.append(f"服务 {module} 缺少健康检查配置")
+            if self.config_yml:
+                for model in self.config_yml.get('models', []):
+                    module_name = f"{model['name']}-module"
+                    if module_name in services:
+                        if 'healthcheck' not in services[module_name]:
+                            self.warnings.append(f"服务 {module_name} 缺少健康检查配置")
+            else:
+                for module in ['yolov8-module', 'peoplenet-module']:
+                    if module in services:
+                        if 'healthcheck' not in services[module]:
+                            self.warnings.append(f"服务 {module} 缺少健康检查配置")
 
             # 检查端口映射
             port_mappings = {}
@@ -129,10 +168,18 @@ class ConfigValidator:
         """验证 Savant Module 配置"""
         print("🤖 验证 Savant Module 配置...")
 
-        modules = {
-            'yolov8': self.project_root / 'modules/yolov8/module.yml',
-            'peoplenet': self.project_root / 'modules/peoplenet/module.yml',
-        }
+        # 从 config.yml 获取模型列表
+        if self.config_yml:
+            modules = {}
+            for model in self.config_yml.get('models', []):
+                module_path = self.project_root / model['module_path']
+                modules[model['name']] = module_path
+        else:
+            # 默认模型列表
+            modules = {
+                'yolov8': self.project_root / 'modules/yolov8/module.yml',
+                'peoplenet': self.project_root / 'modules/peoplenet/module.yml',
+            }
 
         for module_name, module_file in modules.items():
             if not module_file.exists():
@@ -194,7 +241,11 @@ class ConfigValidator:
                 print(f"  ✅ Egress 配置: {', '.join(egress_names)}")
 
                 # 检查 egress 目标
-                expected_egress = ['to_yolov8', 'to_peoplenet']
+                if self.config_yml:
+                    expected_egress = [f"to_{model['name']}" for model in self.config_yml.get('models', [])]
+                else:
+                    expected_egress = ['to_yolov8', 'to_peoplenet']
+
                 for expected in expected_egress:
                     if expected not in egress_names:
                         self.warnings.append(f"Router 缺少 egress: {expected}")

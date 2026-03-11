@@ -1,62 +1,38 @@
-"""Router handler - 根据 source_id 设置路由 labels"""
+"""Router Handler - 自动生成
 
-from typing import Any
-from savant_rs import register_handler
-from savant_rs.logging import LogLevel, log
-from savant_rs.utils.serialization import Message
+此文件由 scripts/generate_config.py 自动生成
+请勿手动编辑，修改 config.yml 后重新生成
+"""
+
+from savant_rs.primitives import Message
 
 
 class SourceIdRouter:
-    """根据 source_id 设置路由 labels"""
+    """基于 source_id 的路由器"""
 
     def __call__(self, message_id: int, ingress_name: str, topic: str, message: Message):
-        """处理每个消息，根据 source_id 设置 labels"""
+        """路由消息到对应的模型
 
-        # 获取 source_id
-        source_id = topic  # topic 就是 source_id
+        Args:
+            message_id: 消息 ID
+            ingress_name: 入口名称
+            topic: 主题（通常是 source_id）
+            message: 消息对象
 
-        log(
-            LogLevel.Debug,
-            'source_id_router',
-            f'Received message from source_id: {source_id}',
-        )
+        Returns:
+            Message: 带有路由标签的消息
+        """
+        source_id = topic
 
-        # 根据 source_id 设置 labels
-        if source_id in ['video1', 'video2']:
+        # 路由规则（自动生成）
+        if source_id == 'video1':
             message.labels = ['yolov8']
-            log(
-                LogLevel.Info,
-                'source_id_router',
-                f'Routing {source_id} to yolov8',
-            )
+        elif source_id == 'video2':
+            message.labels = ['yolov8']
         elif source_id == 'video3':
             message.labels = ['peoplenet']
-            log(
-                LogLevel.Info,
-                'source_id_router',
-                f'Routing {source_id} to peoplenet',
-            )
         else:
-            log(
-                LogLevel.Warning,
-                'source_id_router',
-                f'Unknown source_id: {source_id}, not routing',
-            )
+            # 默认不路由
+            message.labels = []
 
         return message
-
-
-def init(params: Any):
-    """初始化 router handler"""
-    log(
-        LogLevel.Info,
-        'router::init',
-        'Initializing source_id router',
-    )
-    register_handler('ingress_handler', SourceIdRouter())
-    log(
-        LogLevel.Info,
-        'router::init',
-        'Source_id router initialized successfully',
-    )
-    return True

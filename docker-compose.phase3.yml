@@ -1,21 +1,105 @@
 version: '3.8'
-
 services:
-  # 视频源适配器 1
-  source-adapter-1:
+  router:
+    image: ghcr.io/insight-platform/savant-router-x86:v0.6.0
+    restart: unless-stopped
+    volumes:
+    - ./config/router_config.json:/opt/etc/configuration.json:ro
+    - ./config:/opt/python:ro
+    - zmq_sockets:/tmp/zmq-sockets
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+  yolov8-module:
+    image: ghcr.io/insight-platform/savant-deepstream:0.6.0-7.1
+    privileged: true
+    restart: unless-stopped
+    runtime: nvidia
+    volumes:
+    - zmq_sockets:/tmp/zmq-sockets
+    - ./modules:/opt/savant/modules
+    - ./models:/models
+    command: modules/yolov8/module.yml
+    ports:
+    - 8000:8080
+    environment:
+    - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/yolov8.ipc
+    - ZMQ_SINK_ENDPOINT=pub+bind:ipc:///tmp/zmq-sockets/output-yolov8.ipc
+    - METRICS_FRAME_PERIOD=1000
+    depends_on:
+      router:
+        condition: service_started
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8080/status
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 1
+            capabilities:
+            - gpu
+  peoplenet-module:
+    image: ghcr.io/insight-platform/savant-deepstream:0.6.0-7.1
+    privileged: true
+    restart: unless-stopped
+    runtime: nvidia
+    volumes:
+    - zmq_sockets:/tmp/zmq-sockets
+    - ./modules:/opt/savant/modules
+    - ./models:/models
+    command: modules/peoplenet/module.yml
+    ports:
+    - 8001:8080
+    environment:
+    - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/peoplenet.ipc
+    - ZMQ_SINK_ENDPOINT=pub+bind:ipc:///tmp/zmq-sockets/output-peoplenet.ipc
+    - METRICS_FRAME_PERIOD=1000
+    depends_on:
+      router:
+        condition: service_started
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8080/status
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 1
+            capabilities:
+            - gpu
+  source-adapter-video1:
     image: ghcr.io/insight-platform/savant-adapters-gstreamer:0.6.0
     restart: unless-stopped
     volumes:
-      - ./videos:/videos
-      - zmq_sockets:/tmp/zmq-sockets
-      - /tmp/video-downloads:/tmp/video-downloads
+    - ./videos:/videos
+    - zmq_sockets:/tmp/zmq-sockets
+    - /tmp/video-downloads:/tmp/video-downloads
     environment:
-      - LOCATION=/videos/video1.mp4
-      - DOWNLOAD_PATH=/tmp/video-downloads
-      - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
-      - SOURCE_ID=video1
-      - SYNC_OUTPUT=True
-    entrypoint: /opt/savant/adapters/gst/sources/video_loop.sh
+    - LOCATION=/videos/video1.mp4
+    - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
+    - SOURCE_ID=video1
+    - SYNC_OUTPUT=True
+    - DOWNLOAD_PATH=/tmp/video-downloads
     depends_on:
       router:
         condition: service_started
@@ -27,22 +111,20 @@ services:
           memory: 512M
         reservations:
           memory: 128M
-
-  # 视频源适配器 2
-  source-adapter-2:
+    entrypoint: /opt/savant/adapters/gst/sources/video_loop.sh
+  source-adapter-video2:
     image: ghcr.io/insight-platform/savant-adapters-gstreamer:0.6.0
     restart: unless-stopped
     volumes:
-      - ./videos:/videos
-      - zmq_sockets:/tmp/zmq-sockets
-      - /tmp/video-downloads:/tmp/video-downloads
+    - ./videos:/videos
+    - zmq_sockets:/tmp/zmq-sockets
+    - /tmp/video-downloads:/tmp/video-downloads
     environment:
-      - LOCATION=/videos/video2.mp4
-      - DOWNLOAD_PATH=/tmp/video-downloads
-      - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
-      - SOURCE_ID=video2
-      - SYNC_OUTPUT=True
-    entrypoint: /opt/savant/adapters/gst/sources/video_loop.sh
+    - LOCATION=/videos/video2.mp4
+    - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
+    - SOURCE_ID=video2
+    - SYNC_OUTPUT=True
+    - DOWNLOAD_PATH=/tmp/video-downloads
     depends_on:
       router:
         condition: service_started
@@ -54,22 +136,20 @@ services:
           memory: 512M
         reservations:
           memory: 128M
-
-  # 视频源适配器 3
-  source-adapter-3:
+    entrypoint: /opt/savant/adapters/gst/sources/video_loop.sh
+  source-adapter-video3:
     image: ghcr.io/insight-platform/savant-adapters-gstreamer:0.6.0
     restart: unless-stopped
     volumes:
-      - ./videos:/videos
-      - zmq_sockets:/tmp/zmq-sockets
-      - /tmp/video-downloads:/tmp/video-downloads
+    - ./videos:/videos
+    - zmq_sockets:/tmp/zmq-sockets
+    - /tmp/video-downloads:/tmp/video-downloads
     environment:
-      - LOCATION=/videos/video3.mp4
-      - DOWNLOAD_PATH=/tmp/video-downloads
-      - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
-      - SOURCE_ID=video3
-      - SYNC_OUTPUT=True
-    entrypoint: /opt/savant/adapters/gst/sources/video_loop.sh
+    - LOCATION=/videos/video3.mp4
+    - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
+    - SOURCE_ID=video3
+    - SYNC_OUTPUT=True
+    - DOWNLOAD_PATH=/tmp/video-downloads
     depends_on:
       router:
         condition: service_started
@@ -81,176 +161,83 @@ services:
           memory: 512M
         reservations:
           memory: 128M
-
-  # Savant Router - 流量分发
-  router:
-    image: ghcr.io/insight-platform/savant-router-x86:v0.6.0
-    restart: unless-stopped
-    volumes:
-      - ./config/router_config.json:/opt/etc/configuration.json:ro
-      - ./config:/opt/python:ro
-      - zmq_sockets:/tmp/zmq-sockets
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 64M
-
-  # YOLOv8 推理模块 (处理 video1, video2)
-  yolov8-module:
-    image: ghcr.io/insight-platform/savant-deepstream:0.6.0-7.1
-    privileged: true
-    restart: unless-stopped
-    runtime: nvidia
-    volumes:
-      - zmq_sockets:/tmp/zmq-sockets
-      - ./modules:/opt/savant/modules
-      - ./models:/models
-    command: modules/yolov8/module.yml
-    ports:
-      - "8000:8080"  # Prometheus 指标端口（容器内 8080，映射到主机 8000）
-    environment:
-      - MODEL_PATH=/models
-      - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/yolov8.ipc
-      - ZMQ_SINK_ENDPOINT=pub+bind:ipc:///tmp/zmq-sockets/output-yolov8.ipc
-      - METRICS_FRAME_PERIOD=1000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 30s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    depends_on:
-      router:
-        condition: service_started
-
-  # PeopleNet 推理模块 (处理 video3)
-  peoplenet-module:
-    image: ghcr.io/insight-platform/savant-deepstream:0.6.0-7.1
-    privileged: true
-    restart: unless-stopped
-    runtime: nvidia
-    volumes:
-      - zmq_sockets:/tmp/zmq-sockets
-      - ./modules:/opt/savant/modules
-      - ./models:/models
-    command: modules/peoplenet/module.yml
-    ports:
-      - "8001:8080"  # Prometheus 指标端口（容器内 8080，映射到主机 8001）
-    environment:
-      - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/peoplenet.ipc
-      - ZMQ_SINK_ENDPOINT=pub+bind:ipc:///tmp/zmq-sockets/output-peoplenet.ipc
-      - METRICS_FRAME_PERIOD=1000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 30s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    depends_on:
-      router:
-        condition: service_started
-
-  # JSON 结果输出 - YOLOv8
+    entrypoint: /opt/savant/adapters/gst/sources/video_loop.sh
   json-sink-yolov8:
     image: ghcr.io/insight-platform/savant-adapters-py:0.6.0
     restart: unless-stopped
     volumes:
-      - zmq_sockets:/tmp/zmq-sockets
-      - ./output:/output
+    - zmq_sockets:/tmp/zmq-sockets
+    - ./output:/output
     environment:
-      - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-yolov8.ipc
-      - FILENAME_PATTERN=/output/yolov8_%source_id_%src_filename.json
+    - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-yolov8.ipc
+    - FILENAME_PATTERN=/output/yolov8_%source_id_%src_filename.json
     command: python -m adapters.python.sinks.metadata_json
     depends_on:
-      - yolov8-module
+    - yolov8-module
     deploy:
       resources:
         limits:
           memory: 256M
         reservations:
           memory: 64M
-
-  # JSON 结果输出 - PeopleNet
   json-sink-peoplenet:
     image: ghcr.io/insight-platform/savant-adapters-py:0.6.0
     restart: unless-stopped
     volumes:
-      - zmq_sockets:/tmp/zmq-sockets
-      - ./output:/output
+    - zmq_sockets:/tmp/zmq-sockets
+    - ./output:/output
     environment:
-      - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-peoplenet.ipc
-      - FILENAME_PATTERN=/output/peoplenet_%source_id_%src_filename.json
+    - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-peoplenet.ipc
+    - FILENAME_PATTERN=/output/peoplenet_%source_id_%src_filename.json
     command: python -m adapters.python.sinks.metadata_json
     depends_on:
-      - peoplenet-module
+    - peoplenet-module
     deploy:
       resources:
         limits:
           memory: 256M
         reservations:
           memory: 64M
-
-  # Prometheus 监控服务
   prometheus:
     image: prom/prometheus:latest
     restart: unless-stopped
     ports:
-      - "9090:9090"
+    - 9090:9090
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+    - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=7d'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --storage.tsdb.retention.time=7d
+    - --web.console.libraries=/usr/share/prometheus/console_libraries
+    - --web.console.templates=/usr/share/prometheus/consoles
     deploy:
       resources:
         limits:
           memory: 512M
         reservations:
           memory: 128M
-
-  # Grafana 可视化服务
   grafana:
     image: grafana/grafana:latest
     restart: unless-stopped
     ports:
-      - "3000:3000"
+    - 3000:3000
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/savant.json:ro
+    - grafana_data:/var/lib/grafana
+    - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/savant.json:ro
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
+    - GF_SECURITY_ADMIN_PASSWORD=admin
+    - GF_USERS_ALLOW_SIGN_UP=false
     depends_on:
-      - prometheus
+    - prometheus
     deploy:
       resources:
         limits:
           memory: 512M
         reservations:
           memory: 128M
-
 volumes:
-  zmq_sockets:
-  prometheus_data:
-  grafana_data:
-
+  zmq_sockets: null
+  prometheus_data: null
+  grafana_data: null

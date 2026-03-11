@@ -4,8 +4,7 @@
       "name": "from_source",
       "socket": {
         "url": "sub+bind:ipc:///tmp/zmq-sockets/input-video.ipc"
-      },
-      "handler": "ingress_handler"
+      }
     }
   ],
   "egress": [
@@ -25,22 +24,9 @@
     }
   ],
   "common": {
-    "init": {
-      "python_root": "/opt/python",
-      "module_name": "router_handler",
-      "function_name": "init"
-    },
-    "source_affinity_cache_size": 1000,
-    "name_cache": {
-      "ttl": {
-        "secs": 10,
-        "nanos": 0
-      },
-      "size": 1000
-    },
-    "idle_sleep": {
-      "secs": 0,
-      "nanos": 1000
+    "handler": {
+      "module": "router_handler",
+      "class_name": "SourceIdRouter"
     }
   }
 }
