@@ -1,0 +1,37 @@
+name: peoplenet_detector
+
+parameters:
+  batch_size: 4
+  frame:
+    width: 1280
+    height: 720
+
+pipeline:
+  elements:
+    - element: nvinfer@detector
+      name: peoplenet
+      model:
+        format: onnx
+        model_file: /models/peoplenet/resnet34_peoplenet.onnx
+        batch_size: ${parameters.batch_size}
+        input:
+          layer_name: input_1:0
+          shape: [3, 544, 960]
+          scale_factor: 0.0039215697906911373
+        output:
+          layer_names: [output_bbox/BiasAdd:0, output_cov/Sigmoid:0]
+          num_detected_classes: 3
+          objects:
+            - class_id: 0
+              label: person
+              selector:
+                kwargs:
+                  min_width: 32
+                  min_height: 32
+            - class_id: 2
+              label: face
+              selector:
+                kwargs:
+                  confidence_threshold: 0.1
+                  min_width: 10
+                  min_height: 10

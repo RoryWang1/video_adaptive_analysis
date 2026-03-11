@@ -1,0 +1,48 @@
+# 模型文件
+models/*.onnx
+models/*.engine
+models/*.pt
+models/*.pth
+models/yolov8/
+models/peoplenet/
+
+# 输出文件
+output/*.json
+output/*.txt
+
+# 视频文件（保留目录结构）
+videos/*.mp4
+videos/*.avi
+videos/*.mov
+videos/*.mkv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 临时文件
+*.tmp
+*.bak
+.DS_Store
+*.tar.gz
+
+# Claude 工作目录
+.claude/

@@ -1,0 +1,33 @@
+name: yolov8_detector
+
+parameters:
+  batch_size: 8
+  frame:
+    width: 1280
+    height: 720
+
+pipeline:
+  elements:
+    - element: nvinfer@detector
+      name: yolov8
+      model:
+        format: onnx
+        model_file: /models/yolov8n.onnx
+        batch_size: 8
+        precision: fp16
+
+        input:
+          shape: [3, 640, 640]
+          scale_factor: 0.003921568627451
+          offsets: [0.0, 0.0, 0.0]
+          color_format: rgb
+
+        output:
+          num_detected_classes: 80
+          layer_names: ['output0']
+          converter:
+            module: savant.converter.yolo
+            class_name: TensorToBBoxConverter
+            kwargs:
+              confidence_threshold: 0.25
+              nms_iou_threshold: 0.45
