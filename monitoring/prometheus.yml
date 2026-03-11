@@ -1,0 +1,29 @@
+# Prometheus 配置文件
+
+global:
+  scrape_interval: 10s      # 每 10 秒采集一次指标
+  evaluation_interval: 10s  # 每 10 秒评估一次规则
+  scrape_timeout: 5s        # 采集超时时间
+
+# 采集目标配置
+scrape_configs:
+  # YOLOv8 模块指标（容器内 8080 端口）
+  - job_name: 'yolov8-module'
+    static_configs:
+      - targets: ['yolov8-module:8080']
+        labels:
+          module: 'yolov8'
+          model: 'yolov8n'
+
+  # PeopleNet 模块指标（容器内 8080 端口）
+  - job_name: 'peoplenet-module'
+    static_configs:
+      - targets: ['peoplenet-module:8080']
+        labels:
+          module: 'peoplenet'
+          model: 'resnet34_peoplenet'
+
+  # Prometheus 自身指标
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

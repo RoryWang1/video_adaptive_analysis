@@ -78,6 +78,8 @@ services:
       - ./modules:/opt/savant/modules
       - ./models:/models
     command: modules/yolov8/module.yml
+    ports:
+      - "8000:8080"  # Prometheus 指标端口（容器内 8080，映射到主机 8000）
     environment:
       - MODEL_PATH=/models
       - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/yolov8.ipc
@@ -111,6 +113,8 @@ services:
       - ./modules:/opt/savant/modules
       - ./models:/models
     command: modules/peoplenet/module.yml
+    ports:
+      - "8001:8080"  # Prometheus 指标端口（容器内 8080，映射到主机 8001）
     environment:
       - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/peoplenet.ipc
       - ZMQ_SINK_ENDPOINT=pub+bind:ipc:///tmp/zmq-sockets/output-peoplenet.ipc
@@ -160,6 +164,38 @@ services:
     depends_on:
       - peoplenet-module
 
+  # Prometheus 监控服务
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+  # Grafana 可视化服务
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/savant.json:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+
 volumes:
   zmq_sockets:
+  prometheus_data:
+  grafana_data:
 

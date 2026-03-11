@@ -6,6 +6,16 @@ parameters:
     width: 1280
     height: 720
 
+  # Telemetry 配置
+  telemetry:
+    metrics:
+      frame_period: 1000  # 每 1000 帧报告一次
+      time_period: 1      # 每 1 秒报告一次
+      history: 100        # 保留最近 100 个数据点
+      extra_labels:
+        module: yolov8
+        model: yolov8n
+
 pipeline:
   elements:
     - element: nvinfer@detector

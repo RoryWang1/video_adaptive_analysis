@@ -46,3 +46,6 @@ build/
 
 # Claude 工作目录
 .claude/
+
+# Savant 源代码（仅供本地参考）
+Savant-releases-0.6.0/
