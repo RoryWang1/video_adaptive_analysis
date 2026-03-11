@@ -44,7 +44,7 @@ class ConfigGenerator:
 
         print("\n✅ 所有配置文件生成完成！")
         print("\n📝 生成的文件：")
-        print("  - docker-compose.phase3.yml")
+        print("  - docker-compose.yml")
         print("  - config/router_config.json")
         print("  - config/router_handler.py")
         print("  - monitoring/prometheus.yml")
@@ -89,7 +89,7 @@ class ConfigGenerator:
             compose['services']['grafana'] = self._create_grafana_service()
 
         # 写入文件
-        output_file = self.project_root / 'docker-compose.phase3.yml'
+        output_file = self.project_root / 'docker-compose.yml'
         with open(output_file, 'w', encoding='utf-8') as f:
             yaml.dump(compose, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 

@@ -24,7 +24,7 @@ cp /path/to/your_video.mp4 videos/video4.mp4
 
 ### 步骤 2：更新 Docker Compose
 
-编辑 `docker-compose.phase3.yml`，添加新的 source adapter：
+编辑 `docker-compose.yml`，添加新的 source adapter：
 
 ```yaml
 services:
@@ -81,7 +81,7 @@ class SourceIdRouter:
 
 ```bash
 # 重启服务
-docker-compose -f docker-compose.phase3.yml up -d
+docker-compose up -d
 
 # 检查新视频源状态
 docker logs ai_video_analysis_source-adapter-4_1 -f
@@ -274,7 +274,7 @@ environment:
 # generate_sources.sh
 
 for i in {4..10}; do
-  cat >> docker-compose.phase3.yml << EOF
+  cat >> docker-compose.yml << EOF
 
   source-adapter-$i:
     image: ghcr.io/insight-platform/savant-adapters-gstreamer:0.6.0
@@ -314,7 +314,7 @@ done
 docker logs ai_video_analysis_source-adapter-4_1 -f
 
 # 查看所有视频源日志
-docker-compose -f docker-compose.phase3.yml logs -f | grep source-adapter
+docker-compose logs -f | grep source-adapter
 ```
 
 ### 检查视频源状态

@@ -29,7 +29,7 @@
 **目录结构** ⭐ 极其重要:
 - 本地开发目录: `/Users/rory/work/project/ai_video_analysis/`
 - 云端服务器目录: `/root/` (注意：配置文件在 `/root/config/`，不在 `/root/ai_video_analysis/config/`)
-- 云端服务器 docker-compose 文件位置: `/root/docker-compose.phase3.yml`
+- 云端服务器 docker-compose 文件位置: `/root/docker-compose.yml`
 - **重要**: 修改文件时必须明确区分本地和服务器路径，不要混淆！
 
 **Python 虚拟环境**:

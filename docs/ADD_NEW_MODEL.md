@@ -171,7 +171,7 @@ class SourceIdRouter:
 
 ### 步骤 4：更新 Docker Compose
 
-编辑 `docker-compose.phase3.yml`，添加新模块服务：
+编辑 `docker-compose.yml`，添加新模块服务：
 
 ```yaml
 services:
@@ -268,7 +268,7 @@ python -c "import yaml; yaml.safe_load(open('modules/your_model_name/module.yml'
 python -c "import json; json.load(open('config/router_config.json'))"
 
 # 验证 Docker Compose
-docker-compose -f docker-compose.phase3.yml config
+docker-compose config
 ```
 
 ### 步骤 7：部署和测试
@@ -277,10 +277,10 @@ docker-compose -f docker-compose.phase3.yml config
 
 ```bash
 # 启动服务
-docker-compose -f docker-compose.phase3.yml up -d
+docker-compose up -d
 
 # 查看日志
-docker-compose -f docker-compose.phase3.yml logs -f your-model-module
+docker-compose logs -f your-model-module
 
 # 检查健康状态
 docker ps | grep your-model
@@ -299,11 +299,11 @@ scp -r models/your_model_name/ root@your-server:/root/ai_video_analysis/models/
 scp modules/your_model_name/module.yml root@your-server:/root/ai_video_analysis/modules/your_model_name/
 scp config/router_config.json root@your-server:/root/ai_video_analysis/config/
 scp config/router_handler.py root@your-server:/root/ai_video_analysis/config/
-scp docker-compose.phase3.yml root@your-server:/root/ai_video_analysis/
+scp docker-compose.yml root@your-server:/root/ai_video_analysis/
 scp monitoring/prometheus.yml root@your-server:/root/ai_video_analysis/monitoring/
 
 # 3. 重启服务
-ssh root@your-server "cd /root/ai_video_analysis && docker-compose -f docker-compose.phase3.yml up -d"
+ssh root@your-server "cd /root/ai_video_analysis && docker-compose up -d"
 
 # 4. 检查状态
 ssh root@your-server "docker ps | grep your-model"

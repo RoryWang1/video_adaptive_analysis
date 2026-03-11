@@ -52,7 +52,7 @@ conda run -n savant-video-analysis python scripts/generate_config.py
 ```
 
 **生成的文件**：
-- `docker-compose.phase3.yml`
+- `docker-compose.yml`
 - `config/router_config.json`
 - `config/router_handler.py`
 - `monitoring/prometheus.yml`
@@ -71,7 +71,7 @@ python scripts/validate_config.py
 ./scripts/deploy.sh
 
 # 或手动部署
-docker-compose -f docker-compose.phase3.yml up -d
+docker-compose up -d
 ```
 
 ---
@@ -281,7 +281,7 @@ config.yml
     ↓
 generate_config.py
     ↓
-├─ docker-compose.phase3.yml  (Docker Compose 配置)
+├─ docker-compose.yml  (Docker Compose 配置)
 ├─ config/router_config.json  (Router 配置)
 ├─ config/router_handler.py   (Router Handler)
 └─ monitoring/prometheus.yml  (Prometheus 配置)
@@ -301,7 +301,7 @@ generate_config.py
 ### 旧方式（手动配置）
 
 需要手动编辑多个文件：
-1. `docker-compose.phase3.yml` - 添加服务
+1. `docker-compose.yml` - 添加服务
 2. `config/router_config.json` - 添加 egress
 3. `config/router_handler.py` - 添加路由逻辑
 4. `monitoring/prometheus.yml` - 添加采集目标
@@ -331,7 +331,7 @@ generate_config.py
 ### 步骤 1：备份现有配置
 
 ```bash
-cp docker-compose.phase3.yml docker-compose.phase3.yml.backup
+cp docker-compose.yml docker-compose.yml.backup
 cp config/router_config.json config/router_config.json.backup
 cp config/router_handler.py config/router_handler.py.backup
 ```
@@ -350,7 +350,7 @@ python scripts/generate_config.py
 
 ```bash
 # 对比 Docker Compose
-diff docker-compose.phase3.yml.backup docker-compose.phase3.yml
+diff docker-compose.yml.backup docker-compose.yml
 
 # 对比 Router 配置
 diff config/router_config.json.backup config/router_config.json

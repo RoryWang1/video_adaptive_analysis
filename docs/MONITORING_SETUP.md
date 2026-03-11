@@ -51,7 +51,7 @@ Grafana (可视化面板)
 
 ### 4. Docker Compose 更新
 
-**docker-compose.phase3.yml**:
+**docker-compose.yml**:
 - YOLOv8 模块暴露端口 8000
 - PeopleNet 模块暴露端口 8001
 - Prometheus 服务端口 9090
@@ -63,7 +63,7 @@ Grafana (可视化面板)
 
 ```bash
 # 1. 验证配置文件语法
-docker-compose -f docker-compose.phase3.yml config
+docker-compose config
 
 # 2. 检查 Prometheus 配置
 docker run --rm -v $(pwd)/monitoring:/etc/prometheus \
@@ -77,18 +77,18 @@ docker run --rm -v $(pwd)/monitoring:/etc/prometheus \
 # 1. 上传配置文件
 scp -r modules/ root@120.24.249.245:/root/ai_video_analysis/
 scp -r monitoring/ root@120.24.249.245:/root/ai_video_analysis/
-scp docker-compose.phase3.yml root@120.24.249.245:/root/ai_video_analysis/
+scp docker-compose.yml root@120.24.249.245:/root/ai_video_analysis/
 
 # 2. 重启服务应用新配置
 ssh root@120.24.249.245 "cd /root/ai_video_analysis && \
-  docker-compose -f docker-compose.phase3.yml down && \
-  docker-compose -f docker-compose.phase3.yml up -d"
+  docker-compose down && \
+  docker-compose up -d"
 
 # 3. 等待服务启动
 sleep 30
 
 # 4. 检查服务状态
-ssh root@120.24.249.245 "docker-compose -f docker-compose.phase3.yml ps"
+ssh root@120.24.249.245 "docker-compose ps"
 ```
 
 ## 访问监控
@@ -172,7 +172,7 @@ ssh root@120.24.249.245 "docker exec ai_video_analysis_grafana_1 \
 
 如果端口 8000/8001 已被占用：
 1. 修改 `modules/*/module.yml` 中的 `prometheus.port`
-2. 修改 `docker-compose.phase3.yml` 中的端口映射
+2. 修改 `docker-compose.yml` 中的端口映射
 3. 修改 `monitoring/prometheus.yml` 中的采集目标
 
 ## 下一步

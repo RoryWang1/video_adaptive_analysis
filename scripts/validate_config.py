@@ -66,7 +66,7 @@ class ConfigValidator:
         print("📁 检查必需文件...")
 
         required_files = [
-            "docker-compose.phase3.yml",
+            "docker-compose.yml",
             "config/router_config.json",
             "config/router_handler.py",
             "modules/yolov8/module.yml",
@@ -87,7 +87,7 @@ class ConfigValidator:
         """验证 Docker Compose 配置"""
         print("🐳 验证 Docker Compose 配置...")
 
-        compose_file = self.project_root / "docker-compose.phase3.yml"
+        compose_file = self.project_root / "docker-compose.yml"
         if not compose_file.exists():
             return
 
@@ -264,7 +264,7 @@ class ConfigValidator:
         # 检查 Docker Compose 和 Prometheus 的端口一致性
         try:
             # 读取 Docker Compose
-            with open(self.project_root / 'docker-compose.phase3.yml', 'r') as f:
+            with open(self.project_root / 'docker-compose.yml', 'r') as f:
                 compose_config = yaml.safe_load(f)
 
             # 读取 Prometheus 配置

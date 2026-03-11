@@ -92,7 +92,7 @@ command:
 
 ```bash
 # 1. 启动系统
-docker-compose -f docker-compose.phase3.yml up -d
+docker-compose up -d
 
 # 2. 监控容器状态
 watch -n 5 'docker ps --format "table {{.Names}}\t{{.Status}}"'
@@ -101,7 +101,7 @@ watch -n 5 'docker ps --format "table {{.Names}}\t{{.Status}}"'
 watch -n 10 'docker stats --no-stream'
 
 # 4. 检查日志错误
-docker-compose -f docker-compose.phase3.yml logs --tail=100 | grep -i error
+docker-compose logs --tail=100 | grep -i error
 ```
 
 ### 2. 长期测试（24 小时+）
@@ -165,11 +165,11 @@ docker ps -a | grep -v "Up"
 docker logs <container_name> --tail 100
 
 # 3. 重启单个服务
-docker-compose -f docker-compose.phase3.yml restart <service_name>
+docker-compose restart <service_name>
 
 # 4. 如果需要，重启整个系统
-docker-compose -f docker-compose.phase3.yml down
-docker-compose -f docker-compose.phase3.yml up -d
+docker-compose down
+docker-compose up -d
 ```
 
 ## 监控告警

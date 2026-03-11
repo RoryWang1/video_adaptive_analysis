@@ -99,7 +99,7 @@ nvidia-smi
 docker run --rm --gpus all nvidia/cuda:11.0-base nvidia-smi
 
 # 3. 检查 Docker Compose 配置
-grep -A 5 "runtime: nvidia" docker-compose.phase3.yml
+grep -A 5 "runtime: nvidia" docker-compose.yml
 ```
 
 **解决方案**：
@@ -355,7 +355,7 @@ Failed to connect to ZeroMQ socket
 docker exec <container_name> ls -l /tmp/zmq-sockets/
 
 # 2. 检查 ZeroMQ 配置
-grep "ZMQ_.*_ENDPOINT" docker-compose.phase3.yml
+grep "ZMQ_.*_ENDPOINT" docker-compose.yml
 
 # 3. 检查容器网络
 docker network inspect ai_video_analysis_default
@@ -495,13 +495,13 @@ environment:
 
 ```bash
 # 查看所有服务日志
-docker-compose -f docker-compose.phase3.yml logs -f
+docker-compose logs -f
 
 # 查看特定服务日志
-docker-compose -f docker-compose.phase3.yml logs -f yolov8-module
+docker-compose logs -f yolov8-module
 
 # 过滤错误日志
-docker-compose -f docker-compose.phase3.yml logs | grep -i error
+docker-compose logs | grep -i error
 ```
 
 ### 技巧 2：进入容器调试
@@ -536,7 +536,7 @@ netstat -tlnp
 python scripts/validate_config.py
 
 # 验证 Docker Compose
-docker-compose -f docker-compose.phase3.yml config
+docker-compose config
 
 # 验证 YAML 语法
 python -c "import yaml; yaml.safe_load(open('modules/yolov8/module.yml'))"
@@ -550,26 +550,26 @@ python -c "import yaml; yaml.safe_load(open('modules/yolov8/module.yml'))"
 
 ```bash
 # 1. 停止所有服务
-docker-compose -f docker-compose.phase3.yml down
+docker-compose down
 
 # 2. 清理资源
 docker system prune -f
 
 # 3. 重新启动
-docker-compose -f docker-compose.phase3.yml up -d
+docker-compose up -d
 
 # 4. 检查状态
-docker-compose -f docker-compose.phase3.yml ps
+docker-compose ps
 ```
 
 ### 重置单个服务
 
 ```bash
 # 重启单个服务
-docker-compose -f docker-compose.phase3.yml restart yolov8-module
+docker-compose restart yolov8-module
 
 # 重建单个服务
-docker-compose -f docker-compose.phase3.yml up -d --force-recreate yolov8-module
+docker-compose up -d --force-recreate yolov8-module
 ```
 
 ---
@@ -581,7 +581,7 @@ docker-compose -f docker-compose.phase3.yml up -d --force-recreate yolov8-module
 1. **收集信息**：
    ```bash
    # 导出所有日志
-   docker-compose -f docker-compose.phase3.yml logs > debug.log
+   docker-compose logs > debug.log
 
    # 导出容器状态
    docker ps -a > containers.txt

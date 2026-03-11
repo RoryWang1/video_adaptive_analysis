@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 # 项目配置
 PROJECT_NAME="ai_video_analysis"
-COMPOSE_FILE="docker-compose.phase3.yml"
+COMPOSE_FILE="docker-compose.yml"
 PYTHON_ENV="savant-video-analysis"
 
 # 打印带颜色的消息
