@@ -80,7 +80,7 @@ services:
     command: modules/yolov8/module.yml
     environment:
       - MODEL_PATH=/models
-      - ZMQ_SRC_ENDPOINT=dealer+connect:ipc:///tmp/zmq-sockets/yolov8.ipc
+      - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/yolov8.ipc
       - ZMQ_SINK_ENDPOINT=pub+bind:ipc:///tmp/zmq-sockets/output-yolov8.ipc
       - METRICS_FRAME_PERIOD=1000
     healthcheck:
@@ -109,13 +109,14 @@ services:
     volumes:
       - zmq_sockets:/tmp/zmq-sockets
       - ./modules:/opt/savant/modules
+      - ./models:/models
     command: modules/peoplenet/module.yml
     environment:
-      - ZMQ_SRC_ENDPOINT=dealer+connect:ipc:///tmp/zmq-sockets/peoplenet.ipc
+      - ZMQ_SRC_ENDPOINT=router+connect:ipc:///tmp/zmq-sockets/peoplenet.ipc
       - ZMQ_SINK_ENDPOINT=pub+bind:ipc:///tmp/zmq-sockets/output-peoplenet.ipc
       - METRICS_FRAME_PERIOD=1000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
       interval: 5s
       timeout: 3s
       retries: 12
