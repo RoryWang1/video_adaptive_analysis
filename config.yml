@@ -88,6 +88,33 @@ monitoring:
     admin_password: admin
     memory_limit: 512M
 
+# 数据持久化配置
+persistence:
+  # Redis Stream 配置（数据流持久化）
+  redis:
+    enabled: true
+    host: redis
+    port: 6379
+    stream_key: savant:video_stream
+    consumer_group: savant_group
+    maxlen: 1000  # 队列最大长度
+    memory_limit: 2gb
+    appendonly: true  # 启用 AOF 持久化
+    appendfsync: everysec  # 每秒同步
+
+  # PostgreSQL 配置（结果持久化）
+  postgres:
+    enabled: true
+    host: postgres
+    port: 5432
+    database: savant_video_analysis
+    user: savant
+    password: savant_password
+    max_connections: 100
+    shared_buffers: 256MB
+    memory_limit: 1gb
+    retention_days: 30  # 数据保留天数
+
 # Docker 镜像版本
 docker_images:
   savant_deepstream: ghcr.io/insight-platform/savant-deepstream:0.6.0-7.1
@@ -96,6 +123,8 @@ docker_images:
   savant_router: ghcr.io/insight-platform/savant-router-x86:v0.6.0
   prometheus: prom/prometheus:latest
   grafana: grafana/grafana:latest
+  redis: redis:7-alpine
+  postgres: postgres:15-alpine
 
 # 资源限制默认值
 resource_defaults:
@@ -108,9 +137,24 @@ resource_defaults:
   json_sink:
     memory_limit: 256M
     memory_reservation: 64M
+  redis_stream_sink:
+    memory_limit: 256M
+    memory_reservation: 64M
+  redis_stream_source:
+    memory_limit: 256M
+    memory_reservation: 64M
+  postgres_sink:
+    memory_limit: 512M
+    memory_reservation: 128M
   prometheus:
     memory_limit: 512M
     memory_reservation: 128M
   grafana:
     memory_limit: 512M
     memory_reservation: 128M
+  redis:
+    memory_limit: 2gb
+    memory_reservation: 512M
+  postgres:
+    memory_limit: 1gb
+    memory_reservation: 256M

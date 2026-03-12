@@ -74,6 +74,17 @@ class ConfigValidator:
             "monitoring/prometheus.yml",
         ]
 
+        # 如果启用了持久化，检查相关文件
+        if self.config_yml.get('persistence', {}).get('postgres', {}).get('enabled'):
+            required_files.append("database/init/01_init.sql")
+
+        if self.config_yml.get('persistence', {}).get('redis', {}).get('enabled'):
+            required_files.append("adapters/redis_stream_sink.py")
+            required_files.append("adapters/redis_stream_source.py")
+
+        if self.config_yml.get('persistence', {}).get('postgres', {}).get('enabled'):
+            required_files.append("adapters/postgres_sink.py")
+
         for file_path in required_files:
             full_path = self.project_root / file_path
             if not full_path.exists():
@@ -115,6 +126,17 @@ class ConfigValidator:
                     required_services.append('prometheus')
                 if self.config_yml.get('monitoring', {}).get('grafana', {}).get('enabled'):
                     required_services.append('grafana')
+
+                # 添加持久化服务
+                if self.config_yml.get('persistence', {}).get('redis', {}).get('enabled'):
+                    required_services.append('redis')
+                    required_services.append('redis-stream-sink')
+                    required_services.append('redis-stream-source')
+
+                if self.config_yml.get('persistence', {}).get('postgres', {}).get('enabled'):
+                    required_services.append('postgres')
+                    for model in self.config_yml.get('models', []):
+                        required_services.append(f"postgres-sink-{model['name']}")
             else:
                 # 如果没有 config.yml，使用默认列表
                 required_services.extend([

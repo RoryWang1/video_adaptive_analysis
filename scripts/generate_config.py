@@ -49,6 +49,13 @@ class ConfigGenerator:
         print("  - config/router_handler.py")
         print("  - monitoring/prometheus.yml")
 
+        # 提示持久化配置
+        if self.config.get('persistence', {}).get('redis', {}).get('enabled'):
+            print("\n💾 数据持久化已启用：")
+            print("  - Redis Stream（数据流持久化）")
+        if self.config.get('persistence', {}).get('postgres', {}).get('enabled'):
+            print("  - PostgreSQL（结果持久化）")
+
     def generate_docker_compose(self):
         """生成 Docker Compose 配置"""
         print("📦 生成 Docker Compose 配置...")
@@ -62,6 +69,20 @@ class ConfigGenerator:
                 'grafana_data': None,
             }
         }
+
+        # 添加持久化卷
+        if self.config.get('persistence', {}).get('redis', {}).get('enabled'):
+            compose['volumes']['redis_data'] = None
+
+        if self.config.get('persistence', {}).get('postgres', {}).get('enabled'):
+            compose['volumes']['postgres_data'] = None
+
+        # 添加持久化服务
+        if self.config.get('persistence', {}).get('redis', {}).get('enabled'):
+            compose['services']['redis'] = self._create_redis_service()
+
+        if self.config.get('persistence', {}).get('postgres', {}).get('enabled'):
+            compose['services']['postgres'] = self._create_postgres_service()
 
         # 添加 Router
         compose['services']['router'] = self._create_router_service()
@@ -80,6 +101,20 @@ class ConfigGenerator:
         for model in self.config['models']:
             service_name = f"json-sink-{model['name']}"
             compose['services'][service_name] = self._create_json_sink_service(model)
+
+        # 添加 Redis Stream Sink（如果启用）
+        if self.config.get('persistence', {}).get('redis', {}).get('enabled'):
+            compose['services']['redis-stream-sink'] = self._create_redis_stream_sink_service()
+
+        # 添加 Redis Stream Source（如果启用）
+        if self.config.get('persistence', {}).get('redis', {}).get('enabled'):
+            compose['services']['redis-stream-source'] = self._create_redis_stream_source_service()
+
+        # 添加 PostgreSQL Sink（如果启用）
+        if self.config.get('persistence', {}).get('postgres', {}).get('enabled'):
+            for model in self.config['models']:
+                service_name = f"postgres-sink-{model['name']}"
+                compose['services'][service_name] = self._create_postgres_sink_service(model)
 
         # 添加监控服务
         if self.config['monitoring']['prometheus']['enabled']:
@@ -257,6 +292,161 @@ class ConfigGenerator:
             'deploy': {
                 'resources': {
                     'limits': {'memory': prom_config.get('memory_limit', defaults['memory_limit'])},
+                    'reservations': {'memory': defaults['memory_reservation']}
+                }
+            }
+        }
+
+    def _create_redis_service(self) -> Dict:
+        """创建 Redis 服务配置"""
+        redis_config = self.config['persistence']['redis']
+        defaults = self.config['resource_defaults']['redis']
+
+        command_parts = [
+            'redis-server',
+        ]
+
+        if redis_config.get('appendonly'):
+            command_parts.append('--appendonly yes')
+            command_parts.append(f"--appendfsync {redis_config.get('appendfsync', 'everysec')}")
+
+        command_parts.append(f"--maxmemory {redis_config.get('memory_limit', '2gb')}")
+        command_parts.append('--maxmemory-policy allkeys-lru')
+        command_parts.append('--save 60 1000')
+
+        return {
+            'image': self.config['docker_images']['redis'],
+            'restart': 'unless-stopped',
+            'command': ' '.join(command_parts),
+            'ports': [f"{redis_config['port']}:6379"],
+            'volumes': ['redis_data:/data'],
+            'deploy': {
+                'resources': {
+                    'limits': {'memory': defaults['memory_limit']},
+                    'reservations': {'memory': defaults['memory_reservation']}
+                }
+            }
+        }
+
+    def _create_postgres_service(self) -> Dict:
+        """创建 PostgreSQL 服务配置"""
+        pg_config = self.config['persistence']['postgres']
+        defaults = self.config['resource_defaults']['postgres']
+
+        return {
+            'image': self.config['docker_images']['postgres'],
+            'restart': 'unless-stopped',
+            'environment': [
+                f"POSTGRES_DB={pg_config['database']}",
+                f"POSTGRES_USER={pg_config['user']}",
+                f"POSTGRES_PASSWORD={pg_config['password']}"
+            ],
+            'ports': [f"{pg_config['port']}:5432"],
+            'volumes': [
+                'postgres_data:/var/lib/postgresql/data',
+                './database/init:/docker-entrypoint-initdb.d'
+            ],
+            'command': [
+                'postgres',
+                f"-c shared_buffers={pg_config.get('shared_buffers', '256MB')}",
+                f"-c max_connections={pg_config.get('max_connections', 100)}",
+                '-c work_mem=4MB'
+            ],
+            'deploy': {
+                'resources': {
+                    'limits': {'memory': defaults['memory_limit']},
+                    'reservations': {'memory': defaults['memory_reservation']}
+                }
+            }
+        }
+
+    def _create_redis_stream_sink_service(self) -> Dict:
+        """创建 Redis Stream Sink 服务配置"""
+        redis_config = self.config['persistence']['redis']
+        defaults = self.config['resource_defaults']['redis_stream_sink']
+
+        return {
+            'image': self.config['docker_images']['savant_adapters_py'],
+            'restart': 'unless-stopped',
+            'volumes': [
+                'zmq_sockets:/tmp/zmq-sockets',
+                './adapters:/opt/adapters'
+            ],
+            'environment': [
+                'ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/input-video.ipc',
+                f"REDIS_HOST={redis_config['host']}",
+                f"REDIS_PORT={redis_config['port']}",
+                f"REDIS_STREAM_KEY={redis_config['stream_key']}",
+                f"REDIS_STREAM_MAXLEN={redis_config['maxlen']}"
+            ],
+            'command': 'python /opt/adapters/redis_stream_sink.py',
+            'depends_on': ['redis'],
+            'deploy': {
+                'resources': {
+                    'limits': {'memory': defaults['memory_limit']},
+                    'reservations': {'memory': defaults['memory_reservation']}
+                }
+            }
+        }
+
+    def _create_redis_stream_source_service(self) -> Dict:
+        """创建 Redis Stream Source 服务配置"""
+        redis_config = self.config['persistence']['redis']
+        defaults = self.config['resource_defaults']['redis_stream_source']
+
+        return {
+            'image': self.config['docker_images']['savant_adapters_py'],
+            'restart': 'unless-stopped',
+            'volumes': [
+                'zmq_sockets:/tmp/zmq-sockets',
+                './adapters:/opt/adapters'
+            ],
+            'environment': [
+                'ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc',
+                f"REDIS_HOST={redis_config['host']}",
+                f"REDIS_PORT={redis_config['port']}",
+                f"REDIS_STREAM_KEY={redis_config['stream_key']}",
+                f"REDIS_CONSUMER_GROUP={redis_config['consumer_group']}",
+                'REDIS_CONSUMER_NAME=consumer1'
+            ],
+            'command': 'python /opt/adapters/redis_stream_source.py',
+            'depends_on': ['redis', 'redis-stream-sink'],
+            'deploy': {
+                'resources': {
+                    'limits': {'memory': defaults['memory_limit']},
+                    'reservations': {'memory': defaults['memory_reservation']}
+                }
+            }
+        }
+
+    def _create_postgres_sink_service(self, model: Dict) -> Dict:
+        """创建 PostgreSQL Sink 服务配置"""
+        pg_config = self.config['persistence']['postgres']
+        defaults = self.config['resource_defaults']['postgres_sink']
+
+        db_url = f"postgresql://{pg_config['user']}:{pg_config['password']}@{pg_config['host']}:{pg_config['port']}/{pg_config['database']}"
+
+        return {
+            'image': self.config['docker_images']['savant_adapters_py'],
+            'restart': 'unless-stopped',
+            'volumes': [
+                'zmq_sockets:/tmp/zmq-sockets',
+                './adapters:/opt/adapters'
+            ],
+            'environment': [
+                f"ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-{model['name']}.ipc",
+                f"POSTGRES_HOST={pg_config['host']}",
+                f"POSTGRES_PORT={pg_config['port']}",
+                f"POSTGRES_DB={pg_config['database']}",
+                f"POSTGRES_USER={pg_config['user']}",
+                f"POSTGRES_PASSWORD={pg_config['password']}",
+                'BATCH_SIZE=10'
+            ],
+            'command': 'python /opt/adapters/postgres_sink.py',
+            'depends_on': ['postgres', f"{model['name']}-module"],
+            'deploy': {
+                'resources': {
+                    'limits': {'memory': defaults['memory_limit']},
                     'reservations': {'memory': defaults['memory_reservation']}
                 }
             }
