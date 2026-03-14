@@ -9,16 +9,15 @@ import os
 import sys
 import json
 import logging
-import asyncio
 from datetime import datetime
 from typing import Dict, List, Any
 
-import asyncpg
-from savant.api.builder import build_zmq_source
-from savant.api.parser import parse_zmq_message
-from savant.utils.logging import get_logger
+import psycopg2
+import psycopg2.pool
+from savant_rs.zmq import BlockingReader, ReaderConfig
+from savant_rs.utils.serialization import load_message_from_bytes
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PostgresSink:
@@ -62,47 +61,52 @@ class PostgresSink:
             f"batch_size={batch_size}"
         )
 
-    async def init_pool(self):
+    def init_pool(self):
         """初始化数据库连接池"""
         try:
-            self.pool = await asyncpg.create_pool(
+            self.pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=10,
                 host=self.db_host,
                 port=self.db_port,
                 database=self.db_name,
                 user=self.db_user,
                 password=self.db_password,
-                min_size=2,
-                max_size=10,
-                command_timeout=60,
             )
             logger.info("数据库连接池创建成功")
         except Exception as e:
             logger.error(f"创建数据库连接池失败: {e}")
             raise
 
-    async def close_pool(self):
+    def close_pool(self):
         """关闭数据库连接池"""
         if self.pool:
-            await self.pool.close()
+            self.pool.closeall()
             logger.info("数据库连接池已关闭")
 
-    async def insert_result(self, result: Dict[str, Any]):
+    def insert_result(self, result: Dict[str, Any]):
         """插入检测结果（帧级别 + 对象级别）
 
         Args:
             result: 检测结果字典
         """
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
+        conn = self.pool.getconn()
+        try:
+            with conn.cursor() as cur:
                 # 1. 获取 source_id 和 model_id
-                source_db_id = await conn.fetchval(
-                    "SELECT id FROM sources WHERE source_id = $1",
-                    result['source_id']
+                cur.execute(
+                    "SELECT id FROM sources WHERE source_id = %s",
+                    (result['source_id'],)
                 )
-                model_db_id = await conn.fetchval(
-                    "SELECT id FROM models WHERE model_name = $1",
-                    result['model_name']
+                row = cur.fetchone()
+                source_db_id = row[0] if row else None
+
+                cur.execute(
+                    "SELECT id FROM models WHERE model_name = %s",
+                    (result['model_name'],)
                 )
+                row = cur.fetchone()
+                model_db_id = row[0] if row else None
 
                 if not source_db_id or not model_db_id:
                     logger.warning(
@@ -113,34 +117,39 @@ class PostgresSink:
                     return
 
                 # 2. 插入帧检测记录
-                frame_detection_id = await conn.fetchval(
+                cur.execute(
                     """
                     INSERT INTO frame_detections
                     (source_id, model_id, frame_num, timestamp, fps, object_count, processing_time_ms)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (source_id, model_id, frame_num, timestamp) DO NOTHING
                     RETURNING id
                     """,
-                    source_db_id,
-                    model_db_id,
-                    result['frame_num'],
-                    result['timestamp'],
-                    result.get('fps'),
-                    len(result['objects']),
-                    result.get('processing_time_ms'),
+                    (
+                        source_db_id,
+                        model_db_id,
+                        result['frame_num'],
+                        result['timestamp'],
+                        result.get('fps'),
+                        len(result['objects']),
+                        result.get('processing_time_ms'),
+                    )
                 )
 
-                if not frame_detection_id:
+                row = cur.fetchone()
+                if not row:
                     # 记录已存在，跳过
                     return
 
+                frame_detection_id = row[0]
+
                 # 3. 批量插入检测对象
                 if result['objects']:
-                    await conn.executemany(
+                    cur.executemany(
                         """
                         INSERT INTO detected_objects
                         (frame_detection_id, object_class, confidence, bbox_x, bbox_y, bbox_width, bbox_height, track_id, attributes)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         [
                             (
@@ -158,7 +167,16 @@ class PostgresSink:
                         ],
                     )
 
-    async def insert_batch(self, results: List[Dict[str, Any]]):
+                conn.commit()
+
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"插入数据失败: {e}", exc_info=True)
+            raise
+        finally:
+            self.pool.putconn(conn)
+
+    def insert_batch(self, results: List[Dict[str, Any]]):
         """批量插入检测结果
 
         Args:
@@ -168,7 +186,7 @@ class PostgresSink:
             return
 
         for result in results:
-            await self.insert_result(result)
+            self.insert_result(result)
 
         logger.info(f"批量插入 {len(results)} 条检测结果")
 
@@ -176,77 +194,115 @@ class PostgresSink:
         """解析检测结果
 
         Args:
-            message: Savant 消息
+            message: Savant Message 对象（不是字节）
 
         Returns:
             检测结果字典
         """
-        # 解析消息
-        parsed = parse_zmq_message(message)
+        try:
+            # message 已经是 Message 对象，不需要再解析
+            if message is None or not message.is_video_frame():
+                return None
 
-        if parsed is None:
+            frame = message.as_video_frame()
+
+            # 提取基本信息
+            source_id = frame.source_id
+
+            # 提取帧编号 - 尝试多个可能的属性
+            frame_num = 0
+            if hasattr(frame, 'keyframe_id'):
+                frame_num = frame.keyframe_id
+            elif hasattr(frame, 'idx'):
+                frame_num = frame.idx
+            elif hasattr(frame, 'frame_num'):
+                frame_num = frame.frame_num
+
+            timestamp = datetime.fromtimestamp(frame.pts / 1000000.0) if hasattr(frame, 'pts') else datetime.now()
+
+            # 提取检测对象 - 使用 get_all_objects() 或直接访问
+            objects = []
+            try:
+                # 尝试不同的方法获取对象
+                if hasattr(frame, 'get_all_objects'):
+                    frame_objects = frame.get_all_objects()
+                elif hasattr(frame, 'access_objects'):
+                    # access_objects 需要一个查询对象，传入 None 获取所有对象
+                    from savant_rs.primitives import VideoObjectsQuery
+                    query = VideoObjectsQuery.any()
+                    frame_objects = frame.access_objects(query)
+                else:
+                    frame_objects = []
+
+                for obj in frame_objects:
+                    bbox = obj.detection_box
+                    objects.append({
+                        'class': obj.label,
+                        'confidence': obj.confidence if hasattr(obj, 'confidence') and obj.confidence else 0.0,
+                        'bbox': {
+                            'x': bbox.xc,
+                            'y': bbox.yc,
+                            'width': bbox.width,
+                            'height': bbox.height,
+                        },
+                        'track_id': obj.track_id if hasattr(obj, 'track_id') else None,
+                    })
+            except Exception as e:
+                logger.warning(f"无法提取对象: {e}")
+                objects = []
+
+            # 从环境变量获取模型名称
+            model_name = os.getenv('MODEL_NAME', 'unknown')
+
+            # 构建结果
+            result = {
+                'source_id': source_id,
+                'model_name': model_name,
+                'frame_num': frame_num,
+                'timestamp': timestamp,
+                'fps': None,  # Savant 0.6.0 中可能没有直接的 fps 字段
+                'objects': objects,
+                'processing_time_ms': None,
+            }
+
+            return result
+
+        except Exception as e:
+            logger.error(f"解析消息失败: {e}", exc_info=True)
             return None
 
-        # 提取基本信息
-        source_id = parsed.source_id
-        frame_num = parsed.idx
-        timestamp = datetime.fromtimestamp(parsed.pts / 1000000.0)
-
-        # 提取检测对象
-        objects = []
-        if hasattr(parsed, 'objects'):
-            for obj in parsed.objects:
-                objects.append({
-                    'class': obj.label,
-                    'confidence': obj.confidence,
-                    'bbox': {
-                        'x': obj.bbox.xc,
-                        'y': obj.bbox.yc,
-                        'width': obj.bbox.width,
-                        'height': obj.bbox.height,
-                    },
-                    'track_id': getattr(obj, 'track_id', None),
-                })
-
-        # 提取模型名称（从元数据中）
-        model_name = 'unknown'
-        if hasattr(parsed, 'json'):
-            try:
-                metadata = json.loads(parsed.json())
-                model_name = metadata.get('model_name', 'unknown')
-            except:
-                pass
-
-        # 构建结果
-        result = {
-            'source_id': source_id,
-            'model_name': model_name,
-            'frame_num': frame_num,
-            'timestamp': timestamp,
-            'fps': getattr(parsed, 'fps', None),
-            'objects': objects,
-            'processing_time_ms': getattr(parsed, 'processing_time_ms', None),
-        }
-
-        return result
-
-    async def run(self):
+    def run(self):
         """运行 Sink"""
         logger.info(f"开始从 {self.zmq_endpoint} 接收检测结果...")
 
         # 初始化数据库连接池
-        await self.init_pool()
+        self.init_pool()
 
-        # 创建 ZeroMQ 源
-        source = build_zmq_source(self.zmq_endpoint)
+        # 创建 ZeroMQ Reader（使用 Builder）
+        from savant_rs.zmq import ReaderConfigBuilder
+
+        config = ReaderConfigBuilder(self.zmq_endpoint).build()
+        reader = BlockingReader(config)
+        reader.start()  # 启动 reader
+        logger.info(f"已连接到 ZeroMQ: {self.zmq_endpoint}")
 
         frame_count = 0
         error_count = 0
 
         try:
-            for message in source:
+            while True:
                 try:
-                    # 解析检测结果
+                    # 接收消息
+                    result = reader.receive()
+
+                    # 提取 Message 对象
+                    if hasattr(result, 'message'):
+                        message = result.message
+                    else:
+                        # 可能是超时或其他结果
+                        continue
+
+                    # 解析检测结果（message 已经是 Message 对象）
                     result = self.parse_detection_result(message)
 
                     if result is None:
@@ -257,7 +313,7 @@ class PostgresSink:
 
                     # 批量插入
                     if len(self.batch) >= self.batch_size:
-                        await self.insert_batch(self.batch)
+                        self.insert_batch(self.batch)
                         frame_count += len(self.batch)
                         self.batch = []
 
@@ -279,10 +335,10 @@ class PostgresSink:
         finally:
             # 插入剩余的批次
             if self.batch:
-                await self.insert_batch(self.batch)
+                self.insert_batch(self.batch)
                 frame_count += len(self.batch)
 
-            await self.close_pool()
+            self.close_pool()
             logger.info(f"总共处理 {frame_count} 帧，错误 {error_count} 次")
 
 
@@ -314,8 +370,7 @@ def main():
         batch_size=batch_size,
     )
 
-    # 运行异步任务
-    asyncio.run(sink.run())
+    sink.run()
 
 
 if __name__ == '__main__':

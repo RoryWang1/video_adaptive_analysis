@@ -1,0 +1,8 @@
+FROM ghcr.io/insight-platform/savant-adapters-py:0.6.0
+
+# 使用清华镜像源加速安装
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple psycopg2-binary
+
+WORKDIR /opt/adapters
+
+CMD ["python", "/opt/adapters/postgres_sink.py"]

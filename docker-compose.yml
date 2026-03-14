@@ -29,9 +29,12 @@ services:
     - ./database/init:/docker-entrypoint-initdb.d
     command:
     - postgres
-    - -c shared_buffers=256MB
-    - -c max_connections=100
-    - -c work_mem=4MB
+    - "-c"
+    - "shared_buffers=256MB"
+    - "-c"
+    - "max_connections=100"
+    - "-c"
+    - "work_mem=4MB"
     deploy:
       resources:
         limits:
@@ -243,7 +246,7 @@ services:
     - zmq_sockets:/tmp/zmq-sockets
     - ./adapters:/opt/adapters
     environment:
-    - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
+    - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-yolov8.ipc
     - REDIS_HOST=redis
     - REDIS_PORT=6379
     - REDIS_STREAM_KEY=savant:video_stream
@@ -257,31 +260,32 @@ services:
           memory: 256M
         reservations:
           memory: 64M
-  redis-stream-source:
+  message-archive-sink:
     image: ghcr.io/insight-platform/savant-adapters-py:0.6.0
     restart: unless-stopped
+    profiles:
+      - archive
     volumes:
     - zmq_sockets:/tmp/zmq-sockets
     - ./adapters:/opt/adapters
+    - ./data/message_archive:/data/message_archive
     environment:
-    - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
-    - REDIS_HOST=redis
-    - REDIS_PORT=6379
-    - REDIS_STREAM_KEY=savant:video_stream
-    - REDIS_CONSUMER_GROUP=savant_group
-    - REDIS_CONSUMER_NAME=consumer1
-    command: python /opt/adapters/redis_stream_source.py
+    - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-yolov8.ipc
+    - ARCHIVE_DIR=/data/message_archive
+    - MAX_FILES_PER_SOURCE=1000
+    command: python /opt/adapters/message_archive_sink.py
     depends_on:
-    - redis
-    - redis-stream-sink
+    - yolov8-module
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
         reservations:
-          memory: 64M
+          memory: 128M
   postgres-sink-yolov8:
-    image: ghcr.io/insight-platform/savant-adapters-py:0.6.0
+    build:
+      context: ./adapters
+      dockerfile: Dockerfile.postgres-sink
     restart: unless-stopped
     volumes:
     - zmq_sockets:/tmp/zmq-sockets
@@ -294,7 +298,7 @@ services:
     - POSTGRES_USER=savant
     - POSTGRES_PASSWORD=savant_password
     - BATCH_SIZE=10
-    command: python /opt/adapters/postgres_sink.py
+    - MODEL_NAME=yolov8
     depends_on:
     - postgres
     - yolov8-module
@@ -305,7 +309,9 @@ services:
         reservations:
           memory: 128M
   postgres-sink-peoplenet:
-    image: ghcr.io/insight-platform/savant-adapters-py:0.6.0
+    build:
+      context: ./adapters
+      dockerfile: Dockerfile.postgres-sink
     restart: unless-stopped
     volumes:
     - zmq_sockets:/tmp/zmq-sockets
@@ -318,7 +324,7 @@ services:
     - POSTGRES_USER=savant
     - POSTGRES_PASSWORD=savant_password
     - BATCH_SIZE=10
-    command: python /opt/adapters/postgres_sink.py
+    - MODEL_NAME=peoplenet
     depends_on:
     - postgres
     - peoplenet-module

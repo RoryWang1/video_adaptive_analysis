@@ -7,17 +7,14 @@ Redis Stream Sink Adapter
 
 import os
 import sys
-import base64
 import json
 import logging
-from typing import Iterator
 
 import redis
-from savant.api.builder import build_zmq_source
-from savant.api.parser import parse_zmq_message
-from savant.utils.logging import get_logger
+from savant_rs.zmq import BlockingReader, ReaderConfig
+from savant_rs.utils.serialization import load_message_from_bytes
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class RedisStreamSink:
@@ -66,38 +63,60 @@ class RedisStreamSink:
         """运行 Sink"""
         logger.info(f"开始从 {self.zmq_endpoint} 接收数据...")
 
-        # 创建 ZeroMQ 源
-        source = build_zmq_source(self.zmq_endpoint)
+        # 创建 ZeroMQ Reader（使用 Builder）
+        from savant_rs.zmq import ReaderConfigBuilder
+
+        config = ReaderConfigBuilder(self.zmq_endpoint).build()
+        reader = BlockingReader(config)
+        reader.start()  # 启动 reader
+        logger.info(f"已连接到 ZeroMQ: {self.zmq_endpoint}")
 
         frame_count = 0
         error_count = 0
 
         try:
-            for message in source:
+            while True:
                 try:
-                    # 解析消息
-                    parsed = parse_zmq_message(message)
+                    # 接收消息
+                    result = reader.receive()
 
-                    if parsed is None:
+                    # 提取 Message 对象
+                    if hasattr(result, 'message'):
+                        message = result.message
+                    else:
+                        # 可能是超时或其他结果
                         continue
 
+                    # message 已经是 Message 对象，不需要再解析
+                    if message is None or not message.is_video_frame():
+                        continue
+
+                    frame = message.as_video_frame()
+
                     # 提取帧信息
-                    source_id = parsed.source_id
-                    frame_idx = parsed.idx
-                    pts = parsed.pts
-                    frame_width = parsed.width
-                    frame_height = parsed.height
-                    fps = getattr(parsed, 'fps', 30.0)
+                    source_id = frame.source_id
+
+                    # 提取帧编号 - 尝试多个可能的属性
+                    frame_idx = 0
+                    if hasattr(frame, 'keyframe_id'):
+                        frame_idx = frame.keyframe_id
+                    elif hasattr(frame, 'idx'):
+                        frame_idx = frame.idx
+                    elif hasattr(frame, 'frame_num'):
+                        frame_idx = frame.frame_num
+
+                    pts = frame.pts if hasattr(frame, 'pts') else 0
+                    frame_width = frame.width
+                    frame_height = frame.height
 
                     # 写入 Redis Stream（仅元数据，不包含帧数据）
                     message_data = {
                         'source_id': source_id,
                         'frame_num': str(frame_idx),
                         'pts': str(pts),
-                        'timestamp': str(pts / 1000000.0),  # 转换为秒
+                        'timestamp': str(pts / 1000000.0) if pts > 0 else '0',  # 转换为秒
                         'width': str(frame_width),
                         'height': str(frame_height),
-                        'fps': str(fps),
                     }
 
                     # XADD 写入

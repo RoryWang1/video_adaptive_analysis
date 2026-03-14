@@ -1,32 +1,47 @@
 {
-  "ingress": [
-    {
-      "name": "from_source",
-      "socket": {
-        "url": "sub+bind:ipc:///tmp/zmq-sockets/input-video.ipc"
-      }
+    "ingress": [
+        {
+            "name": "from_source",
+            "socket": {
+                "url": "sub+bind:ipc:///tmp/zmq-sockets/input-video.ipc"
+            },
+            "handler": "ingress_handler"
+        }
+    ],
+    "egress": [
+        {
+            "name": "to_yolov8",
+            "socket": {
+                "url": "dealer+bind:ipc:///tmp/zmq-sockets/yolov8.ipc"
+            },
+            "matcher": "[yolov8]"
+        },
+        {
+            "name": "to_peoplenet",
+            "socket": {
+                "url": "dealer+bind:ipc:///tmp/zmq-sockets/peoplenet.ipc"
+            },
+            "matcher": "[peoplenet]"
+        }
+    ],
+    "common": {
+        "init": {
+            "python_root": "/opt/python",
+            "module_name": "router_handler",
+            "function_name": "init",
+            "args": {}
+        },
+        "source_affinity_cache_size": 1000,
+        "name_cache": {
+            "ttl": {
+                "secs": 10,
+                "nanos": 0
+            },
+            "size": 1000
+        },
+        "idle_sleep": {
+            "secs": 0,
+            "nanos": 1000
+        }
     }
-  ],
-  "egress": [
-    {
-      "name": "to_yolov8",
-      "socket": {
-        "url": "dealer+bind:ipc:///tmp/zmq-sockets/yolov8.ipc"
-      },
-      "matcher": "[yolov8]"
-    },
-    {
-      "name": "to_peoplenet",
-      "socket": {
-        "url": "dealer+bind:ipc:///tmp/zmq-sockets/peoplenet.ipc"
-      },
-      "matcher": "[peoplenet]"
-    }
-  ],
-  "common": {
-    "handler": {
-      "module": "router_handler",
-      "class_name": "SourceIdRouter"
-    }
-  }
 }

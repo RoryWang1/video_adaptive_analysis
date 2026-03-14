@@ -155,6 +155,9 @@ deploy_services() {
     print_info "停止现有服务..."
     docker-compose -f $COMPOSE_FILE down || true
 
+    print_info "构建自定义镜像（postgres-sink）..."
+    docker-compose -f $COMPOSE_FILE build postgres-sink-yolov8 postgres-sink-peoplenet
+
     print_info "拉取最新镜像..."
     docker-compose -f $COMPOSE_FILE pull
 
