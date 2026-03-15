@@ -38,11 +38,11 @@
 ### v4.0 最终方案 (生产级)
 
 1. ✅ **多Module架构** - 每个模型独立module,避免显存浪费
-2. ✅ **Kafka+Redis持久化** - 数据不丢失,支持重启
-3. ✅ **Etcd配置中心** - 动态调整参数,无需重启
+2. ✅ **Redis Stream + PostgreSQL持久化** - 数据不丢失,支持重启
+3. ✅ **统一配置管理** - 单一config.yml自动生成Docker Compose
 4. ✅ **Savant Router分发** - 按source_id路由到不同module
 5. ✅ **背压机制** - 队列限制+降帧策略
-6. ✅ **完整监控体系** - Prometheus+Grafana+Watchdog
+6. ✅ **完整监控体系** - Prometheus+Grafana
 
 ---
 
@@ -64,24 +64,24 @@
                          │ ZeroMQ
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│         Kafka-Redis Sink Adapter - Savant原生                    │
-│  - 帧数据 → Redis (TTL=60s)                                      │
-│  - 元数据 → Kafka (retention=1h)                                 │
+│         Redis Stream Sink + PostgreSQL Sink - Savant原生         │
+│  - 数据流 → Redis Stream (持久化)                                │
+│  - 结果 → PostgreSQL (历史存储)                                  │
 │  - 数据持久化,支持重启不丢失                                       │
 └────────────────────────┬────────────────────────────────────────┘
                          │
               ┌──────────┴──────────┐
               ▼                     ▼
-      ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-      │    Kafka     │      │    Redis     │      │     Etcd     │
-      │  (metadata)  │      │   (frames)   │      │   (config)   │
-      │  消息队列     │      │   帧缓存      │      │   配置中心    │
-      └──────┬───────┘      └──────┬───────┘      └──────┬───────┘
-             │                     │                     │
+      ┌──────────────┐      ┌──────────────┐
+      │    Redis     │      │  PostgreSQL  │
+      │ (数据流)      │      │  (结果存储)   │
+      │ 持久化        │      │  历史查询     │
+      └──────┬───────┘      └──────┬───────┘
+             │                     │
              └─────────────────────┼─────────────────────┘
                                    ▼
                           ┌─────────────────┐
-                          │ Kafka-Redis     │
+                          │ Redis Stream    │
                           │ Source Adapter  │ - Savant原生
                           └────────┬────────┘
                                    │ ZeroMQ
@@ -130,18 +130,17 @@
 | 组件 | 作用 | 是否必需 | Savant原生 | 说明 |
 |------|------|---------|-----------|------|
 | Source Adapter | RTSP接入 | ✅ | ✅ | 多路视频流接入,硬件解码 |
-| Kafka-Redis Sink | 数据持久化 | ✅ | ✅ | 帧数据缓存,元数据队列 |
-| Kafka | 元数据队列 | ✅ | ❌ | 消息持久化,支持回溯 |
-| Redis | 帧数据缓存 | ✅ | ❌ | 临时存储,TTL自动清理 |
-| Etcd | 配置中心 | ✅ | ❌ | 动态配置,无需重启 |
-| Kafka-Redis Source | 数据读取 | ✅ | ✅ | 从Kafka+Redis读取数据 |
+| Redis Stream Sink | 数据流持久化 | ✅ | ✅ | 实时数据流持久化,支持消费者组 |
+| PostgreSQL Sink | 结果存储 | ✅ | ✅ | 检测结果存储,历史查询 |
+| Redis | 数据流缓存 | ✅ | ❌ | 实时数据流,支持重启恢复 |
+| PostgreSQL | 结果数据库 | ✅ | ❌ | 检测结果存储,支持查询 |
+| Redis Stream Source | 数据读取 | ✅ | ✅ | 从Redis Stream读取数据 |
 | Savant Router | 流量分发 | ✅ | ✅ | 按source_id路由到不同module |
 | Savant Module (多个) | GPU推理 | ✅ | ✅ | 每个模型独立module |
 | Result Sink | 结果输出 | ✅ | ✅ | JSON/视频/RTSP输出 |
-| PostgreSQL | 结果存储 | ✅ | ❌ | 历史数据查询 |
 | FastAPI | 查询API | ✅ | ❌ | RESTful接口 |
 | Prometheus/Grafana | 监控 | ✅ | ✅ | 性能指标可视化 |
-| Watchdog | 健康检查 | ✅ | ✅ | 自动重启故障服务 |
+| Message Archive | 消息归档 | ✅ | ✅ | 完整消息存储,支持重放 |
 
 ---
 
@@ -181,37 +180,42 @@ pipeline:
 - 故障隔离
 - 独立扩展
 
-### 2. 为什么需要Kafka+Redis?
+### 2. 为什么需要Redis Stream + PostgreSQL?
 
 **问题**: 纯ZeroMQ方案在以下场景会丢数据:
 - GPU module重启
 - 下游服务故障
 - 网络抖动
 
-**Kafka+Redis方案**:
+**Redis Stream + PostgreSQL方案**:
 ```
-Source → Kafka-Redis Sink → Kafka(meta) + Redis(frames) → Kafka-Redis Source → Module
+Source → Redis Stream Sink → Redis (数据流) + PostgreSQL (结果)
+       → Redis Stream Source → Module
 ```
 
 **优势**:
-- 数据持久化(Kafka retention=1h, Redis TTL=60s)
+- 数据持久化(Redis Stream支持消费者组,PostgreSQL支持历史查询)
 - 支持重启不丢失
 - 多消费者模式
 - 背压缓冲
+- 结果可查询
 
-### 3. 为什么需要Etcd?
+### 3. 为什么需要统一配置管理?
 
 **动态配置场景**:
 - 运行时启用/禁用某路视频流
 - 调整模型置信度阈值
 - A/B测试不同模型
 
-**实现示例**:
-```python
-# 从Etcd读取配置
-enabled = etcd_client.get(f'savant/sources/{source_id}/enabled')
-threshold = etcd_client.get(f'savant/models/yolov8/confidence_threshold')
-```
+**实现方式**:
+- 单一 `config.yml` 文件管理所有配置
+- 运行 `generate_config.py` 自动生成 Docker Compose
+- 运行 `validate_config.py` 验证配置正确性
+
+**优势**:
+- 配置集中管理,易于维护
+- 自动生成Docker Compose,避免手动错误
+- 配置验证,确保正确性
 
 ---
 
@@ -240,39 +244,48 @@ sources:
 
 ---
 
-### 2. Kafka-Redis Sink/Source (数据持久化)
+### 2. Redis Stream Sink + PostgreSQL Sink (数据持久化)
 
-**Sink配置**:
-```bash
-docker run --rm -it \
-  ghcr.io/insight-platform/savant-adapters-py:latest \
-  kafka-redis-sink \
-    --kafka-brokers kafka:9092 \
-    --kafka-topic video-frames \
-    --redis-host redis:6379 \
-    --redis-ttl 60
+**Redis Stream Sink配置**:
+```python
+# adapters/redis_stream_sink.py
+# 将数据流写入 Redis Stream
+# 支持消费者组,支持重启恢复
 ```
 
-**Source配置**:
+**PostgreSQL Sink配置**:
+```python
+# adapters/postgres_sink.py
+# 将检测结果写入 PostgreSQL
+# 支持历史查询,支持数据分析
+```
+
+**使用方式**:
 ```bash
-docker run --rm -it \
-  ghcr.io/insight-platform/savant-adapters-py:latest \
-  kafka-redis-source \
-    --kafka-brokers kafka:9092 \
-    --kafka-topic video-frames \
-    --redis-host redis:6379
+# 在 docker-compose.yml 中配置
+redis-stream-sink:
+  image: ghcr.io/insight-platform/savant-adapters-py:0.6.0
+  environment:
+    - REDIS_HOST=redis
+    - REDIS_STREAM_KEY=savant:video_stream
+
+postgres-sink:
+  image: ghcr.io/insight-platform/savant-adapters-py:0.6.0
+  environment:
+    - POSTGRES_HOST=postgres
+    - POSTGRES_DB=savant_video_analysis
 ```
 
 ---
 
 ### 3. Savant Router (流量分发)
 
-**配置文件**: `config/router_config.json`
+**配置文件**: `config/router_config.json` (由 `scripts/generate_config.py` 生成)
 
 ```json
 {
   "ingress": [{
-    "name": "from_kafka",
+    "name": "from_redis_stream",
     "socket": {
       "url": "sub+bind:ipc:///tmp/zmq-sockets/input.ipc"
     }
@@ -283,14 +296,14 @@ docker run --rm -it \
       "socket": {
         "url": "pub+bind:ipc:///tmp/zmq-sockets/yolov8.ipc"
       },
-      "matcher": "camera_entrance,camera_parking"
+      "matcher": "video1,video2"
     },
     {
-      "name": "to_face_rec",
+      "name": "to_peoplenet",
       "socket": {
-        "url": "pub+bind:ipc:///tmp/zmq-sockets/face_rec.ipc"
+        "url": "pub+bind:ipc:///tmp/zmq-sockets/peoplenet.ipc"
       },
-      "matcher": "camera_office"
+      "matcher": "video3"
     }
   ]
 }
