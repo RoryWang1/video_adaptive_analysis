@@ -97,7 +97,7 @@ mkdir -p output
 
 **任务 2: 编写 YOLOv8 module.yml**
 
-基于官方示例: `docs/Savant-code/samples/peoplenet_detector/module.yml`
+基于官方示例: `docs/savant-reference/peoplenet_detector/module.yml`
 
 ```yaml
 name: yolov8_detector

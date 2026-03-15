@@ -157,8 +157,8 @@ pipeline:
       name: yolov8
       model: /models/yolov8n.onnx  # 500MB显存
     - element: nvinfer@detector
-      name: face_rec
-      model: /models/face_rec.onnx  # 800MB显存
+      name: peoplenet
+      model: /models/peoplenet/resnet34_peoplenet.onnx  # 800MB显存
 ```
 
 **问题**: Savant在pipeline初始化时会一次性加载所有模型到GPU,即使条件执行也无法释放显存。
@@ -223,21 +223,28 @@ Source → Redis Stream Sink → Redis (数据流) + PostgreSQL (结果)
 
 ### 1. Savant Source Adapter (视频接入)
 
-**配置文件**: `config/sources.yml`
+**配置文件**: `config.yml` (统一配置文件)
 
 ```yaml
-sources:
-  - id: camera_entrance
-    location: rtsp://192.168.1.100/stream1
-    sync_output: false
+video_sources:
+  - id: video1
+    type: file
+    location: /videos/video1.mp4
+    route_to: yolov8
 
-  - id: camera_parking
-    location: rtsp://192.168.1.101/stream1
-    sync_output: false
+  - id: video2
+    type: file
+    location: /videos/video2.mp4
+    route_to: yolov8
+
+  - id: video3
+    type: file
+    location: /videos/video3.mp4
+    route_to: peoplenet
 ```
 
 **特性**:
-- 多路RTSP并发接入
+- 多路视频并发接入
 - 硬件解码(NVDEC)
 - 自动重连
 - 背压感知
@@ -491,8 +498,8 @@ scrape_configs:
   - job_name: 'savant-modules'
     static_configs:
       - targets:
-          - 'module-yolov8:8080'
-          - 'module-face-rec:8080'
+          - 'yolov8-module:8080'
+          - 'peoplenet-module:8080'
 ```
 
 ### 2. Grafana Dashboard
@@ -501,23 +508,28 @@ scrape_configs:
 - 实时FPS (按source_id)
 - GPU利用率/显存占用
 - 推理延迟分布 (P50/P95/P99)
-- Kafka消息积压
+- Kafka消息积压 → Redis Stream 数据流积压
 - Redis内存使用
 
-### 3. Watchdog健康检查
+### 3. 健康检查和自动恢复
 
-**配置**: `config/watchdog.yml`
+**Docker Compose 健康检查配置**:
 ```yaml
-watch:
-  - buffer: ipc:///tmp/zmq-sockets/yolov8.ipc
-    queue:
-      action: restart
-      length: 100  # 队列>100触发重启
-      cooldown: 30
-    egress:
-      action: restart
-      idle: 60  # 60秒无输出触发重启
-      cooldown: 30
+healthcheck:
+  test:
+    - CMD
+    - curl
+    - -f
+    - http://localhost:8080/status
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 30s
+```
+
+**自动重启策略**:
+```yaml
+restart: unless-stopped
 ```
 
 ---
@@ -526,7 +538,7 @@ watch:
 
 ## Docker Compose配置 (生产环境)
 
-完整配置见: `docs/DOCKER_COMPOSE_EXAMPLE.yml`
+完整配置见: `docker-compose.yml`
 
 **关键配置说明**:
 
@@ -845,7 +857,7 @@ priority_map = {
 # 单机多GPU
 gpu_workers:
   - gpu_id: 0
-    models: [yolov8, face_rec]
+    models: [yolov8, peoplenet]
   - gpu_id: 1
     models: [behavior, vehicle]
 
@@ -1063,7 +1075,7 @@ ai_video_analysis/
 │   └── models.yml         # 模型配置
 ├── models/
 │   ├── yolov8n.engine
-│   ├── face_rec.engine
+│   ├── peoplenet.engine
 │   └── behavior.engine
 ├── monitoring/
 │   ├── prometheus.yml

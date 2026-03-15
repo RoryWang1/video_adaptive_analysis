@@ -6,8 +6,8 @@
 
 **核心特点**:
 - 多 Module 架构（每个模型独立，避免显存浪费）
-- Kafka+Redis 数据持久化（支持重启不丢失）
-- Etcd 动态配置（运行时调整参数）
+- Redis Stream + PostgreSQL 数据持久化（支持重启不丢失）
+- 统一配置管理（运行时调整参数）
 - Savant Router 流量分发（按 source_id 路由）
 - 完整监控体系（Prometheus+Grafana+Watchdog）
 
@@ -15,9 +15,7 @@
 - Savant 0.6.0+ (视频处理框架)
 - DeepStream 7.1+ (GPU推理引擎)
 - TensorRT (模型加速)
-- Kafka 3.6+ (消息队列)
-- Redis 7.0+ (帧缓存)
-- Etcd 3.5+ (配置中心)
+- Redis 7.0+ (数据流缓存)
 - PostgreSQL 15+ (结果存储)
 - FastAPI (查询API)
 - Prometheus + Grafana (监控)
@@ -93,8 +91,8 @@
 
 | 功能 | 说明 | 何时添加 |
 |------|------|---------|
-| Kafka+Redis | 数据持久化 | 需要重启不丢数据时 |
-| Etcd | 动态配置 | 需要运行时调整参数时 |
+| Kafka+Redis | 数据持久化 | 已实现为 Redis Stream + PostgreSQL |
+| Etcd | 动态配置 | 已实现为统一配置管理 |
 | PostgreSQL | 结果存储 | 需要查询历史数据时 |
 | FastAPI | 查询服务 | 需要 API 接口时 |
 | Prometheus+Grafana | 监控 | 需要性能监控时 |
@@ -139,8 +137,7 @@ MVP Phase 3: 多路视频 + 多模型
 **专业术语保持英文**:
 - Savant、Module、Pipeline、Router
 - TensorRT、DeepStream、CUDA
-- Kafka、Redis、Etcd、PostgreSQL
-- Docker、Kubernetes、GPU
+- Redis、PostgreSQL、Docker
 
 **示例对话**:
 ```
@@ -238,7 +235,7 @@ Claude: 使用 Write 工具一次性创建
 
 **大文件 (>50行)**: 分块编写
 ```
-用户: "创建 docker-compose.cloud.yml"
+用户: "创建 docker-compose.yml"
 Claude:
   1. Write 工具创建前 50 行（基础设施层）
   2. Edit 工具追加接下来的 50 行（视频接入层）
@@ -902,7 +899,7 @@ Claude: "Phase 1 已完成并提交。是否继续 Phase 2？"
 |------|---------|
 | 多流处理 | `docs/savant-reference/` |
 | Router 分发 | `docs/savant-reference/router/` |
-| Kafka-Redis | 见 ARCHITECTURE_DESIGN.md |
+| Redis Stream | 见 ARCHITECTURE_DESIGN.md |
 | 监控配置 | 见 OPERATIONS_GUIDE.md |
 | 条件执行 | 见 DEVELOPMENT_PLAN_MVP.md |
 | 多模型选择 | 见 ARCHITECTURE_DESIGN.md |
@@ -933,9 +930,7 @@ python -c "import json; json.load(open('config/router_config.json'))"
 | Savant | 0.6.0+ | 视频处理框架 |
 | DeepStream | 7.1+ | GPU推理引擎 |
 | TensorRT | - | 模型加速 |
-| Kafka | 3.6+ | 消息队列 |
-| Redis | 7.0+ | 帧缓存 |
-| Etcd | 3.5+ | 配置中心 |
+| Redis | 7.0+ | 数据流缓存 |
 | PostgreSQL | 15+ | 结果存储 |
 | FastAPI | - | 查询API |
 | Prometheus | - | 指标采集 |
@@ -945,9 +940,10 @@ python -c "import json; json.load(open('config/router_config.json'))"
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| Kafka retention | 1小时 | 消息保留时间 |
-| Redis TTL | 60秒 | 帧缓存过期时间 |
+| Redis Stream maxlen | 1000 | 数据流最大长度 |
+| Redis TTL | 60秒 | 数据过期时间 |
 | Redis maxmemory | 2GB | 最大内存限制 |
+| PostgreSQL retention | 30天 | 数据保留天数 |
 | GPU batch_size | 4 | 批处理大小 |
 | 目标延迟 | <100ms | 端到端延迟 |
 | 目标吞吐 | 10路×10fps | 100帧/秒 |
@@ -1015,7 +1011,7 @@ docker run --rm -v $(pwd):/workspace \
 
 1. **超时问题**: 如果任务复杂，主动拆分为更小的任务
 2. **配置验证**: 使用 Savant 工具验证配置正确性
-3. **参考示例**: 优先参考 `docs/Savant-code/samples/` 下的官方示例
+3. **参考示例**: 优先参考 `docs/savant-reference/` 下的官方示例
 4. **中文沟通**: 除专业术语外，全部使用中文
 5. **增量开发**: 不要一次性完成太多，保持增量验证
 6. **Skill 使用**: 在适当的时候自动使用 Skill 提升效率
