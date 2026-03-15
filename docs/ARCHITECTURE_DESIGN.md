@@ -31,8 +31,8 @@
 
 1. ✅ 使用Savant原生组件
 2. ❌ 单module多模型 - 显存浪费(所有模型同时加载)
-3. ❌ 缺少Kafka/Redis - 数据无持久化,重启丢失
-4. ❌ 缺少Etcd - 无法动态配置
+3. ❌ 缺少Redis Stream/PostgreSQL - 数据无持久化,重启丢失
+4. ❌ 缺少统一配置管理 - 配置分散,难以维护
 5. ❌ 缺少背压机制 - GPU过载时内存溢出
 
 ### v4.0 最终方案 (生产级)
@@ -360,22 +360,22 @@ pipeline:
         tracker-height: 384
 ```
 
-**人脸识别模块**: `modules/face_rec/module.yml`
+**人脸识别模块**: `modules/peoplenet/module.yml`
 
 ```yaml
-name: face_recognition
+name: peoplenet_detector
 
 parameters:
-  batch_size: 8
+  batch_size: 4
 
 pipeline:
   elements:
     - element: nvinfer@detector
-      name: face_detector
+      name: peoplenet
       model:
         format: onnx
-        model_file: /models/face_rec.onnx
-        batch_size: 8
+        model_file: /models/peoplenet/resnet34_peoplenet.onnx
+        batch_size: 4
 ```
 
 ---
@@ -425,9 +425,8 @@ class PostgresSink(NvDsPyFuncPlugin):
 | 环节 | 延迟预算 | 优化手段 |
 |------|---------|---------|
 | 视频解码 | 20ms | 硬件解码(NVDEC) |
-| Kafka写入 | 5ms | 批量写入,异步 |
 | Redis写入 | 2ms | Pipeline批量操作 |
-| Kafka读取 | 5ms | 预取缓冲 |
+| Redis读取 | 2ms | 预取缓冲 |
 | Router分发 | 1ms | ZeroMQ IPC模式 |
 | GPU推理 | 50ms | TensorRT FP16,批处理 |
 | 结果写入 | 10ms | 异步批量插入 |
@@ -453,18 +452,7 @@ parameters:
 
 ### 3. 背压控制
 
-**Kafka队列限制**:
-```yaml
-kafka:
-  topic: video-frames
-  retention.ms: 3600000  # 1小时
-  max.message.bytes: 10485760  # 10MB
-
-  # 消费者配置
-  fetch.min.bytes: 1048576  # 1MB批量拉取
-```
-
-**Redis TTL**:
+**Redis配置**:
 ```yaml
 redis:
   ttl: 60  # 60秒后自动删除
@@ -543,25 +531,24 @@ watch:
 **关键配置说明**:
 
 1. **基础设施层**:
-   - Kafka: 消息队列,retention=1h
-   - Redis: 帧缓存,TTL=60s,maxmemory=2GB
-   - Etcd: 配置中心
+   - Redis: 数据流缓存
    - PostgreSQL: 结果存储
+   - Prometheus: 指标采集
+   - Grafana: 可视化
 
 2. **视频接入层**:
    - Source Adapter: 多路RTSP接入
-   - Kafka-Redis Sink: 数据持久化
+   - Redis Stream Sink: 数据流持久化
 
 3. **推理层**:
-   - Kafka-Redis Source: 数据读取
+   - Redis Stream Source: 数据读取
    - Router: 流量分发
    - Module YOLOv8: 2副本,GPU 0
-   - Module Face Rec: 1副本,GPU 0
+   - Module PeopleNet: 1副本,GPU 0
 
 4. **监控层**:
    - Prometheus: 指标采集
    - Grafana: 可视化
-   - Watchdog: 健康检查
 
 ---
 
@@ -569,50 +556,80 @@ watch:
 
 ```
 ai_video_analysis/
-├── modules/                    # Savant模块定义
+├── CLAUDE.md                      # Claude 工作规范
+├── README.md                      # 项目说明
+├── config.yml                     # 统一配置文件（核心）
+├── docker-compose.yml             # 生产环境配置（由 generate_config.py 生成）
+│
+├── config/                        # 配置文件目录
+│   └── router_config.json         # Router 路由配置（由 generate_config.py 生成）
+│
+├── modules/                       # Savant 模块定义
 │   ├── yolov8/
-│   │   ├── module.yml         # YOLOv8配置
-│   │   └── post_process.py    # 后处理逻辑
-│   └── face_rec/
-│       ├── module.yml         # 人脸识别配置
-│       └── post_process.py
-├── config/
-│   ├── sources.yml            # 视频源配置
-│   ├── router_config.json     # Router分发规则
-│   └── watchdog.yml           # 健康检查配置
-├── models/
-│   ├── yolov8n.onnx          # ONNX模型文件
-│   └── face_rec.onnx
-├── services/
-│   └── api/                   # FastAPI查询服务
-│       ├── main.py
-│       ├── models.py
-│       └── Dockerfile
-├── monitoring/
-│   ├── prometheus.yml         # Prometheus配置
-│   ├── grafana_datasources/   # Grafana数据源
-│   └── grafana_dashboards/    # Grafana面板
-├── scripts/
-│   ├── init_db.sql           # 数据库初始化
-│   ├── convert_models.sh     # 模型转换脚本
-│   └── start.sh              # 启动脚本
-├── tests/
-│   └── test_pipeline.py      # 集成测试
-├── docker-compose.yml         # 本地开发配置
-├── docker-compose.cloud.yml   # 云端生产配置
-├── docs/
-│   ├── ARCHITECTURE_DESIGN.md
-│   ├── DEVELOPMENT_PLAN.md
-│   └── DOCKER_COMPOSE_EXAMPLE.yml
-├── .gitignore
-└── README.md
+│   │   └── module.yml             # YOLOv8 检测模块配置
+│   └── peoplenet/
+│       └── module.yml             # PeopleNet 人脸检测模块配置
+│
+├── models/                        # AI 模型文件
+│   ├── yolov8n.onnx               # YOLOv8 ONNX 模型
+│   └── peoplenet/                 # PeopleNet 模型文件
+│       ├── resnet34_peoplenet.onnx
+│       ├── labels.txt
+│       └── nvinfer_config.txt
+│
+├── adapters/                      # 自定义适配器（Python）
+│   ├── postgres_sink.py           # PostgreSQL 结果存储
+│   ├── redis_stream_sink.py       # Redis Stream 数据流
+│   ├── message_archive_sink.py    # 消息归档 Sink
+│   ├── message_archive_source.py  # 消息重放 Source
+│   ├── Dockerfile.postgres-sink   # PostgreSQL Sink Docker 镜像
+│   └── requirements.txt           # Python 依赖
+│
+├── database/                      # 数据库相关
+│   └── init/                      # 初始化脚本
+│       └── *.sql                  # 数据库初始化 SQL
+│
+├── monitoring/                    # 监控配置
+│   ├── prometheus.yml             # Prometheus 配置
+│   ├── grafana-dashboard.json     # Grafana 面板
+│   └── grafana-dashboard-savant.json
+│
+├── scripts/                       # 工具脚本
+│   ├── generate_config.py         # 从 config.yml 生成 Docker Compose
+│   ├── validate_config.py         # 验证配置文件
+│   ├── deploy.sh                  # 云端部署脚本
+│   ├── cleanup_archive.sh         # 归档清理脚本
+│   ├── convert_model.sh           # 模型转换脚本
+│   ├── verify_local.sh            # 本地验证脚本
+│   └── test_persistence.sh        # 持久化测试脚本
+│
+├── videos/                        # 测试视频文件
+│   ├── video1.mp4
+│   ├── video2.mp4
+│   └── video3.mp4
+│
+├── output/                        # 输出结果目录
+│
+└── docs/                          # 文档目录
+    ├── README.md                  # 文档导航
+    ├── ARCHITECTURE_DESIGN.md     # 架构设计
+    ├── DEVELOPMENT_PLAN_MVP.md    # MVP 开发计划
+    ├── ADD_NEW_MODEL.md           # 添加新模型指南
+    ├── ADD_NEW_VIDEO_SOURCE.md    # 添加新视频源指南
+    ├── UNIFIED_CONFIG.md          # 统一配置管理指南
+    ├── OPERATIONS_GUIDE.md        # 系统运维指南
+    ├── TROUBLESHOOTING.md         # 故障排查指南
+    └── savant-reference/          # Savant 官方示例
+        ├── peoplenet_detector/
+        └── router/
 ```
 
-**代码量估算**:
-- Savant配置: ~200行YAML
-- PyFunc逻辑: ~300行Python
-- FastAPI服务: ~500行Python
-- 总计: ~1000行代码
+**关键说明**:
+- `config.yml` 是核心配置文件，手动编辑
+- `docker-compose.yml` 由 `generate_config.py` 自动生成
+- `config/router_config.json` 由 `generate_config.py` 自动生成
+- `adapters/` 包含自定义的 Python 适配器
+- `scripts/` 包含配置生成、验证、部署等工具脚本
 
 ---
 
@@ -638,10 +655,10 @@ ai_video_analysis/
 ### 核心改进
 
 1. **多Module架构** - 每个模型独立module,避免显存浪费
-2. **Kafka+Redis持久化** - 数据不丢失,支持重启
-3. **Etcd配置中心** - 动态调整参数,无需重启
+2. **Redis Stream + PostgreSQL持久化** - 数据不丢失,支持重启
+3. **统一配置管理** - 单一config.yml自动生成Docker Compose
 4. **Savant Router分发** - 按source_id路由到不同module
-5. **完整监控体系** - Prometheus+Grafana+Watchdog
+5. **完整监控体系** - Prometheus+Grafana
 
 ### 适用场景
 
@@ -650,7 +667,7 @@ ai_video_analysis/
 ✅ 实时性要求(<100ms)
 ✅ 单机/小集群GPU部署
 ✅ 需要数据持久化
-✅ 需要动态配置
+✅ 需要统一配置管理
 
 ### 不适用场景
 
@@ -663,14 +680,11 @@ ai_video_analysis/
 | 层级 | 技术选型 | 来源 |
 |------|---------|------|
 | 视频处理 | Savant Framework | Savant原生 |
-| 消息队列 | Kafka | 开源 |
-| 缓存 | Redis | 开源 |
-| 配置中心 | Etcd | 开源 |
+| 数据流缓存 | Redis | 开源 |
+| 结果存储 | PostgreSQL | 开源 |
 | 推理引擎 | TensorRT | NVIDIA |
-| 数据库 | PostgreSQL | 开源 |
 | API框架 | FastAPI | 开源 |
 | 监控 | Prometheus+Grafana | 开源 |
-| 健康检查 | Watchdog | Savant原生 |
 
 **Savant原生组件占比**: 12/13 = 92%
 **自建代码量**: ~1000行 (仅FastAPI服务)
