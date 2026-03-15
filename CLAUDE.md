@@ -42,9 +42,9 @@
 
 **关键文档**:
 - 架构设计: `docs/ARCHITECTURE_DESIGN.md`
-- 开发计划（完整版）: `docs/DEVELOPMENT_PLAN_V4.md`
 - 开发计划（MVP版）: `docs/DEVELOPMENT_PLAN_MVP.md` ⭐ 优先参考
-- Docker 配置: `docs/DOCKER_COMPOSE_EXAMPLE.yml`
+- 用户指南: `docs/README.md`
+- 运维指南: `docs/OPERATIONS_GUIDE.md`
 
 ---
 
@@ -383,7 +383,7 @@ Claude: "我已完成以下任务：
 
 2. **基于真实数据**
    - ✅ 使用真实的 Savant 示例代码
-   - ✅ 参考 `docs/Savant-code/samples/` 下的官方示例
+   - ✅ 参考 `docs/savant-reference/` 下的官方示例
    - ❌ 不编造不存在的 API 或配置
 
 3. **最大化利用 Savant 原生能力**
@@ -615,7 +615,7 @@ def create_savant_module(
         创建的 module.yml 路径
     """
     # 1. 读取官方示例
-    template_path = f'docs/Savant-code/samples/{template_source}/module.yml'
+    template_path = f'docs/savant-reference/{template_source}/module.yml'
     template = read_yaml(template_path)
 
     # 2. 修改配置
@@ -889,23 +889,23 @@ Claude: "Phase 1 已完成并提交。是否继续 Phase 2？"
 ### 官方文档
 - Savant 官方文档: https://docs.savant-ai.io/
 - Savant GitHub: https://github.com/insight-platform/Savant
-- 本地示例: `docs/Savant-code/samples/`
+- 本地示例: `docs/savant-reference/`
 
 ### 项目文档
 - 架构设计: `docs/ARCHITECTURE_DESIGN.md`
-- 开发计划: `docs/DEVELOPMENT_PLAN_V4.md`
-- Docker 配置示例: `docs/DOCKER_COMPOSE_EXAMPLE.yml`
+- 开发计划: `docs/DEVELOPMENT_PLAN_MVP.md`
+- 用户指南: `docs/README.md`
 
 ### 关键示例位置
 
 | 功能 | 示例路径 |
 |------|---------|
-| 多流处理 | `docs/Savant-code/samples/multiple_rtsp/` |
-| Router 分发 | `docs/Savant-code/samples/router/` |
-| Kafka-Redis | `docs/Savant-code/samples/kafka_redis_adapter/` |
-| 监控配置 | `docs/Savant-code/samples/pass_through_processing/` |
-| 条件执行 | `docs/Savant-code/samples/conditional_video_processing/` |
-| 多模型选择 | `docs/Savant-code/samples/traffic_meter/` |
+| 多流处理 | `docs/savant-reference/` |
+| Router 分发 | `docs/savant-reference/router/` |
+| Kafka-Redis | 见 ARCHITECTURE_DESIGN.md |
+| 监控配置 | 见 OPERATIONS_GUIDE.md |
+| 条件执行 | 见 DEVELOPMENT_PLAN_MVP.md |
+| 多模型选择 | 见 ARCHITECTURE_DESIGN.md |
 
 ### 配置验证命令
 
