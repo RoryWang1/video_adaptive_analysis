@@ -152,6 +152,10 @@ detected_objects (
    - 自动映射类别 ID 到名称（car, person, bus 等）
 5. **最近检测结果**: 最新 100 条检测记录详情
 
+**Dashboard 示例**:
+
+![Grafana Dashboard](docs/dashboard.png)
+
 **对象类别映射**:
 ```
 YOLOv8 (COCO 数据集):
