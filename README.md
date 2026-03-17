@@ -276,37 +276,3 @@ source-adapter-video4:
 └── README.md
 ```
 
-## 常见问题
-
-### Q: 如何查看检测结果？
-
-A: 访问 Grafana (http://localhost:3000)，打开 "AI 视频分析 - 检测结果" dashboard。
-
-### Q: 如何更改视频源使用的模型？
-
-A: 修改 `config/router_config.json` 中的 `matcher` 规则，将视频源的 `source_id` 添加到对应模型的路由规则中。
-
-### Q: 数据库中的数据会丢失吗？
-
-A: 不会。PostgreSQL 使用 Docker volume 持久化存储，重启容器后数据仍然保留。
-
-### Q: 如何清理历史数据？
-
-A: 连接 PostgreSQL 数据库执行清理 SQL：
-```bash
-docker-compose exec postgres psql -U savant -d savant_video_analysis -c "DELETE FROM frame_detections WHERE timestamp < NOW() - INTERVAL '30 days';"
-```
-
-## 技术文档
-
-- [架构设计文档](docs/ARCHITECTURE_DESIGN.md)
-- [开发计划](docs/DEVELOPMENT_PLAN_MVP.md)
-- [运维指南](docs/OPERATIONS_GUIDE.md)
-
-## 许可证
-
-MIT License
-
-## 致谢
-
-本项目基于 [Savant](https://github.com/insight-platform/Savant) 框架开发。
