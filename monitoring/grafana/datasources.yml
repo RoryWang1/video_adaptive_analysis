@@ -1,0 +1,13 @@
+apiVersion: 1
+
+datasources:
+  - name: Detection Results
+    type: postgres
+    url: postgres:5432
+    user: savant
+    jsonData:
+      database: savant_video_analysis
+      sslmode: 'disable'
+      postgresVersion: 1500
+    secureJsonData:
+      password: 'savant_password'

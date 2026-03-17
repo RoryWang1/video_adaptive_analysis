@@ -1,0 +1,243 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P59ADD19C53C4BA5A"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P59ADD19C53C4BA5A"
+          },
+          "format": "table",
+          "rawSql": "SELECT SUM(object_count) as total FROM frame_detections WHERE object_count > 0",
+          "refId": "A"
+        }
+      ],
+      "title": "检测对象总数",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P59ADD19C53C4BA5A"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P59ADD19C53C4BA5A"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as total FROM frame_detections WHERE object_count > 0",
+          "refId": "A"
+        }
+      ],
+      "title": "有检测结果的帧数",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P59ADD19C53C4BA5A"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P59ADD19C53C4BA5A"
+          },
+          "format": "table",
+          "rawSql": "SELECT s.source_id as \"视频源\", CASE WHEN fd.model_id = 1 THEN 'YOLOv8' WHEN fd.model_id = 2 THEN 'PeopleNet' ELSE 'Unknown' END as \"模型\", COUNT(*) as \"处理帧数\", SUM(fd.object_count) as \"检测对象数\" FROM frame_detections fd JOIN sources s ON fd.source_id = s.id WHERE fd.object_count > 0 GROUP BY s.source_id, fd.model_id ORDER BY \"检测对象数\" DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "按视频源和模型统计（仅有检测结果）",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P59ADD19C53C4BA5A"
+      },
+      "fieldConfig": {
+        "defaults": {}
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 4,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "数量",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P59ADD19C53C4BA5A"
+          },
+          "format": "table",
+          "rawSql": "SELECT CASE WHEN object_class = '0' THEN 'person' WHEN object_class = '2' THEN 'car' WHEN object_class = '3' THEN 'motorcycle' WHEN object_class = '5' THEN 'bus' WHEN object_class = '6' THEN 'train' WHEN object_class = '7' THEN 'truck' WHEN object_class = '9' THEN 'traffic light' WHEN object_class = '12' THEN 'stop sign' WHEN object_class = '67' THEN 'cell phone' WHEN object_class = 'person' THEN 'person' ELSE object_class END as \"对象类别\", COUNT(*) as \"数量\" FROM detected_objects GROUP BY object_class ORDER BY \"数量\" DESC LIMIT 10",
+          "refId": "A"
+        }
+      ],
+      "title": "检测对象类别分布（Top 10）",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "P59ADD19C53C4BA5A"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 5,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "P59ADD19C53C4BA5A"
+          },
+          "format": "table",
+          "rawSql": "SELECT s.source_id as \"视频源\", CASE WHEN fd.model_id = 1 THEN 'YOLOv8' WHEN fd.model_id = 2 THEN 'PeopleNet' ELSE 'Unknown' END as \"模型\", fd.frame_num as \"帧号\", fd.object_count as \"对象数\", ROUND(fd.fps::numeric, 2) as \"FPS\" FROM frame_detections fd JOIN sources s ON fd.source_id = s.id WHERE fd.object_count > 0 ORDER BY fd.id DESC LIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "title": "最近检测结果（仅有检测对象的帧）",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["detection", "ai"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "AI 视频分析 - 检测结果",
+  "uid": "detection-results",
+  "version": 2,
+  "weekStart": ""
+}

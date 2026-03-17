@@ -6,6 +6,10 @@ parameters:
     width: 1280
     height: 720
 
+  # 输出帧配置 - Always-On RTSP Sink 需要
+  output_frame:
+    codec: ${oc.env:CODEC, 'h264'}
+
   # Telemetry 配置
   telemetry:
     metrics:
