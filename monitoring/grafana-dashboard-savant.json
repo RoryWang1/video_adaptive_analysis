@@ -601,7 +601,7 @@
   "timepicker": {},
   "timezone": "",
   "title": "Savant 视频分析监控",
-  "uid": "savant-video-analysis",
+  "uid": "savant-system-analysis",
   "version": 0,
   "weekStart": ""
 }
