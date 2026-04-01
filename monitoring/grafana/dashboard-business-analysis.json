@@ -1,0 +1,233 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "Detection Results"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "Detection Results"
+      },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(distinct s.source_id) as \"活跃视频源\", count(f.*) as \"总检测帧数\" FROM frame_detections f JOIN sources s ON f.source_id = s.id WHERE \$__timeFilter(f.timestamp)",
+          "refId": "A"
+        }
+      ],
+      "title": "业务概览",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "Detection Results"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "Detection Results"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT o.object_class as \"类别\", count(*) as \"数量\" FROM detected_objects o JOIN frame_detections f ON o.frame_detection_id = f.id WHERE \$__timeFilter(f.timestamp) GROUP BY o.object_class ORDER BY 2 DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "检测对象类别分布",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "Detection Results"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "Detection Results"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT s.source_id as \"视频源\", count(f.*) as \"检测帧数\" FROM frame_detections f JOIN sources s ON f.source_id = s.id WHERE \$__timeFilter(f.timestamp) GROUP BY s.source_id",
+          "refId": "A"
+        }
+      ],
+      "title": "各视频源处理负荷",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "Detection Results"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 4,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "Detection Results"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT f.timestamp as \"时间\", s.source_id as \"视频源\", m.model_name as \"AI模型\", o.object_class as \"检测目标\", o.confidence as \"置信度\" FROM detected_objects o JOIN frame_detections f ON o.frame_detection_id = f.id JOIN sources s ON f.source_id = s.id JOIN models m ON f.model_id = m.id WHERE \$__timeFilter(f.timestamp) ORDER BY f.timestamp DESC LIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "title": "实时检测明细流",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": [
+    "savant",
+    "business-analysis"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Savant 视频业务分析看板",
+  "uid": "savant-business-analysis",
+  "version": 1,
+  "weekStart": ""
+}
