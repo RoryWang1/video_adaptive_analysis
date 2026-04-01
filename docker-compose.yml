@@ -360,11 +360,11 @@ services:
     ports:
     - 3000:3000
     volumes:
-    - grafana_data:/var/lib/grafana
-    - ./monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
-    - ./monitoring/grafana-dashboard-savant.json:/etc/grafana/provisioning/dashboards/savant.json:ro
-    - ./monitoring/grafana/dashboard-business-analysis.json:/etc/grafana/provisioning/dashboards/business.json:ro
-    - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./monitoring/grafana-dashboard-savant.json:/var/lib/grafana/dashboards/savant.json:ro
+      - ./monitoring/grafana/dashboard-business-analysis.json:/var/lib/grafana/dashboards/business.json:ro
+      - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
     environment:
     - GF_SECURITY_ADMIN_PASSWORD=admin
     - GF_USERS_ALLOW_SIGN_UP=false
