@@ -1,12 +1,19 @@
 apiVersion: 1
 
 providers:
-  - name: 'default'
+  - name: 'System Monitoring'
     orgId: 1
-    folder: ''
+    folder: 'Savant'
     type: file
     disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
+    editable: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /etc/grafana/provisioning/dashboards/savant.json
+  - name: 'Business Analysis'
+    orgId: 1
+    folder: 'Savant'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/business.json
