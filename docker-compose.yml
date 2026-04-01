@@ -361,9 +361,9 @@ services:
     - 3000:3000
     volumes:
     - grafana_data:/var/lib/grafana
-    - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/savant.json:ro
-    - ./monitoring/grafana/dashboard-business-analysis.json:/etc/grafana/provisioning/dashboards/business.json:ro
     - ./monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+    - ./monitoring/grafana-dashboard-savant.json:/etc/grafana/provisioning/dashboards/savant.json:ro
+    - ./monitoring/grafana/dashboard-business-analysis.json:/etc/grafana/provisioning/dashboards/business.json:ro
     - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
     environment:
     - GF_SECURITY_ADMIN_PASSWORD=admin
